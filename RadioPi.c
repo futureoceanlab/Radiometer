@@ -332,7 +332,7 @@ void  Count_Photons() {
             LastBlockPhotonCount = BlockPhotonCount;
             BlockPhotonCount = 0;
             SecPhotonCount += LastBlockPhotonCount;
-            if(iBlock==11) {iBlock=0;LastSecPhotonCount=SecPhotonCount;SecPhotonCount=0; fHeartBeatReady=TRUE;};
+            if(iBlock==11) {iBlock=0;LastSecPhotonCount=SecPhotonCount;SecPhotonCount=0; fHeartbeatReady=TRUE;};
 
         }  // while(fCaptureData)
 
@@ -459,7 +459,7 @@ void Serial_Comms()  {
     int bytes,n,hSerial;
     const char WS[2] = " ";
     char *token;
-    unsigned int tyear,tmonth,tday,thour,tminute,tsec;
+//    unsigned int tyear,tmonth,tday,thour,tminute,tsec;
     struct timespec NewTime;
     struct tm tmNew;
 
@@ -487,8 +487,8 @@ void Serial_Comms()  {
                                &tmNew.tm_min,
                                &tmNew.tm_sec);
                     if(n==6) {  // Set Time and Start Logging Data
-                        ttmNew.tm_isdst = 0; // ignore DST, we're all using UTC
-                        NewTime.tv_sec  = mktime(tmNew);
+                        tmNew.tm_isdst = 0; // ignore DST, we're all using UTC
+                        NewTime.tv_sec  = mktime(&tmNew);
                         NewTime.tv_nsec = 0;
                         clock_settime(CLOCK_REALTIME,&NewTime);
                         sprintf(Wbuffer,"RAD ON %u:%u:%u %u:%u:%u \r\n",tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday, tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec);
@@ -551,7 +551,7 @@ void Serial_Comms()  {
         if(fHeartbeatReady) {
             fHeartbeatReady = FALSE;
             clock_gettime(CLOCK_REALTIME,&NewTime);
-            sprintf(Wbuffer,"RAD %u:%u:%u %u:%u:%u %lu %u %u \r\n",
+            sprintf(Wbuffer,"RAD %u:%u:%u %u:%u:%u %u %u %u %u \r\n",
                     tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday,
                     tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec,
                     LastSecPhotonCount,Tilt.heading,Tilt.pitch,Tilt.roll);
@@ -581,7 +581,7 @@ void Fake_Serial_Comms()  {
     int bytes,n,hSerial;
     const char WS[2] = " ";
     char *token;
-    unsigned int tyear,tmonth,tday,thour,tminute,tsec;
+//    unsigned int tyear,tmonth,tday,thour,tminute,tsec;
     struct timespec NewTime;
     struct tm tmNew;
     
@@ -608,8 +608,8 @@ void Fake_Serial_Comms()  {
                                &tmNew.tm_min,
                                &tmNew.tm_sec);
                     if(n==6) {  // Set Time and Start Logging Data
-                        ttmNew.tm_isdst = 0; // ignore DST, we're all using UTC
-                        NewTime.tv_sec  = mktime(tmNew);
+                        tmNew.tm_isdst = 0; // ignore DST, we're all using UTC
+                        NewTime.tv_sec  = mktime(&tmNew);
                         NewTime.tv_nsec = 0;
                         clock_settime(CLOCK_REALTIME,&NewTime);
                         sprintf(Wbuffer,"RAD ON %u:%u:%u %u:%u:%u \r\n",tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday, tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec);
@@ -672,7 +672,7 @@ void Fake_Serial_Comms()  {
         if(fHeartbeatReady) {
             fHeartbeatReady = FALSE;
             clock_gettime(CLOCK_REALTIME,&NewTime);
-            sprintf(Wbuffer,"RAD %u:%u:%u %u:%u:%u %lu %u %u \r\n",
+            sprintf(Wbuffer,"RAD %u:%u:%u %u:%u:%u %u %u %u %u \r\n",
                     tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday,
                     tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec,
                     LastSecPhotonCount,Tilt.heading,Tilt.pitch,Tilt.roll);

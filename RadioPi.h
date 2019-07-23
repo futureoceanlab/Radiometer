@@ -103,8 +103,7 @@ const uint16_t Lpins[] = {4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17};
 		if (vsp.tv_nsec < 0) {				        \
 			vsp.tv_sec--;				            \
 			vsp.tv_nsec += 1000000000L;			    \
-		}
-\
+		} \
 	} while (0)
 
 
@@ -217,7 +216,7 @@ static volatile uint8_t fLogTerminated=TRUE;
 static volatile uint8_t fCountTerminated=TRUE;
   // Tell Serial Thread that the Count and Log threads are done (data
   // written to storage, files closed, etc) and ready to shutdown.
-static volatile uint8_t fHeartBeatReady=FALSE;
+static volatile uint8_t fHeartbeatReady=FALSE;
   // Flag letting Counter tell Serial that there's a heartbeat ready to go
 
 // Timing Variables
