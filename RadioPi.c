@@ -191,6 +191,9 @@
 
 #include "RadioPi.h"
 
+#define CRUISE_NAME "DeepSee OTZ Cruise, July 2019"
+#define SHIP_NAME  "NOAA Henry B. Bigelow"
+
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  %                                                                             %
@@ -205,7 +208,7 @@ int main() {
     InitGPIO();
     
 	// TODO: Wait until ON signal has been received
-    #pragma omp places(cores) proc_bind(spread)
+//    #pragma omp places(cores) proc_bind(spread)
     #pragma omp parallel num_threads(3)
     {
         #pragma omp single nowait
@@ -247,12 +250,12 @@ void  Count_Photons() {
     Mask[1] = ((1 << 10) -1) << Lpins[0];
     Mask[2] = ((1 <<  2) -1) << Lpins[10];
     
-    strncopy((char *)DataHeader,"@@@@@@@@@@@@@@@@@",18); // NOTE: Include one termination '\0' so that  it's  clearly  readable as an ascii  string
+    strncpy((char *)DataHeader,"@@@@@@@@@@@@@@@@@",18); // NOTE: Include one termination '\0' so that  it's  clearly  readable as an ascii  string
 
     dt.tv_sec = 0;
     dt.tv_nsec = ONE_BILLION / SAMPLES_PER_SEC; // Nanoseconds per sample
     
-    while(){ // eternal loop
+    while(TRUE){ // eternal loop
 
         while(fCaptureData){ // Capture a new Buffer and Swap when ready
 
@@ -270,21 +273,21 @@ void  Count_Photons() {
             }
 
             // Fill DataHeader = Array of 16 uint16_t with Time and  Tilt Data
-            memcopy(DataHeader+9,&to.tv_sec,4);
-            memcopy(DataHeader+11,&to.tv_nsec,4);
+            memcpy(DataHeader+9,&to.tv_sec,4);
+            memcpy(DataHeader+11,&to.tv_nsec,4);
             DataHeader[13]=Tilt.heading;
             DataHeader[14]=Tilt.pitch;
             DataHeader[15]=Tilt.roll;
             
             // Write DataHeader to Buffer
-            memcopy(pNewData,DataHeader,32);
+            memcpy(pNewData,DataHeader,32);
             
-            for(i=0; i<Nw; i++) {
+            for(int i=0; i<Nw; i++) {
 
                 // Spin until time for next data sample
                 do {
-                    clock_gettime(CLOCK_REALTIME, &t))
-                } while(timespeccmp(t,tn,<))
+                    clock_gettime(CLOCK_REALTIME, &t);
+                } while(timespeccmp(t,tn,<));
                 
                 ////////////////////////////////////////////////////////////
                 ////////////////////////////////////////////////////////////
@@ -293,12 +296,12 @@ void  Count_Photons() {
                 gpioWrite(PIN_LATCHEN,      0);  // Pull the latch down to hold data
                 gpioWrite(PIN_COUNTCLEAR,   1);  // Reset Counter. Need to hold pin high at least 5us, ~200MHz
                 gpioWrite(PIN_COUNTCLEAR,   0);  // Happily (sic) the Pi can only toggle a pin at < 87MHz.  We good.
-                clock_gettime(CLOCK_REALTIME, &t)
+                clock_gettime(CLOCK_REALTIME, &t);
                 RawData = gpioRead_Bits_0_31();  // Pull the data & reorder bits as needed
                 gpioWrite(PIN_LATCHEN,      1);  // Release the Latch!
                 // Now reorder the relevant bits into a photon count in 5 operations...
-                ObsPhotonCount =    ( (RawData & NMask[0]) >> 4 ) |
-                                    ( (RawData & NMask[1]) >> 6 ) ;
+                ObsPhotonCount =    ( (RawData & Mask[0]) >> 4 ) |
+                                    ( (RawData & Mask[1]) >> 6 ) ;
                 
                 // End Critical Code
                 // Release the Kracken!!!
@@ -334,7 +337,7 @@ void  Count_Photons() {
 
         Sleep_ms(1); // Sleep for 1 ms before checking again
 
-        fClocksInitialized = FLASE;
+        fClocksInitialized = FALSE;
 
     } // while()
     
@@ -349,18 +352,16 @@ void  Count_Photons() {
  */
 void  Log_Data() {
     // File Variables
-    FILE *pDataFile,*pMetaFile;
-    const char sFileRoot="FOL_RAD_";
     uint8_t fFilesOpen=FALSE;
     uint32_t BlocksWritten=0;
 
-    while(){
+    while(TRUE){
         while(fLogData)  {
             
             if(!fFilesOpen) {OpenFiles(); fFilesOpen=TRUE; BlocksWritten = 0;}
-            if(!CaptureData) {fCaptureData=TRUE;};
+            if(!fCaptureData) {fCaptureData=TRUE;};
             
-            while(!fBufferFull) {Sleep_ms(1)};
+            while(!fBufferFull) {Sleep_ms(1);};
             
                 // Write pOldData to SD card
             fwrite(pOldData, 1, DATA_BLOCK_SIZE, pDataFile);
@@ -452,19 +453,18 @@ void  Log_Data() {
  ==> "<LIST OF COMMANDS> \r\n"
 */
 void Serial_Comms()  {
-    struct termios options;
     char Rbuffer[64],Wbuffer[64];
     
     int bytes,n,hSerial;
     const char WS[2] = " ";
     char *token;
-    uint16_t tyear,tmonth,tday,thour,tminute,tsec;
+    unsigned int tyear,tmonth,tday,thour,tminute,tsec;
 
     // system("sudo systemctl stop serial-getty@ttyAMA0.service");
 
     hSerial = OpenSerialPort();
 
-    while() {
+    while(TRUE) {
         ioctl(hSerial, FIONREAD, &bytes);
         
         if(bytes!=0){
@@ -476,7 +476,7 @@ void Serial_Comms()  {
                 token = strtok(NULL,WS);
                 // ON
                 if(strcmp(token,OnToken)==0) {
-                    n = sscanf{Rbuffer,"ON %u:%u:%u %u:%u:%u \r\n",&tyear,&tmonth,&tday,&thour,&tminute,&tsec};
+                    n = sscanf(Rbuffer,"ON %u:%u:%u %u:%u:%u \r\n",&tyear,&tmonth,&tday,&thour,&tminute,&tsec);
                     if(n==6) {
                         /* Set Time */
                     }
@@ -512,7 +512,7 @@ void Serial_Comms()  {
                     // Do  Stuff as needed
                     sleep(5);
                     // Make sure  you're ready TO  DIE!!!
-                    while(!log_terminated || !count_terminated){}
+                    while(fLogTerminated || !fCountTerminated){}
                     write(hSerial, msgPoweredDown,strlen(msgPoweredDown));
 
                 }
@@ -546,9 +546,9 @@ void Serial_Comms()  {
  %                                                                             %
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  */
-int   OpenFiles(void)  {
-    char *DataName,*MetaName;
+void   OpenFiles(void)  {
     char sFileNameTime[24],sHeaderTime[24],sFileNameTxt[48],sFileNameBin[48];
+    const char sFileRoot[]="FOL_RAD_";
     time_t rawtime;
     struct tm *timeinfo;
     
@@ -559,7 +559,7 @@ int   OpenFiles(void)  {
     strftime(sFileNameTime,24,"%Y_%m_%d_%H_%M_%S",timeinfo); // "YYYY_MM_DD__HH_MM_SS"
     
     strcpy(sFileNameTxt,sFileRoot);
-    strcat(sFileNameTxt,sNameTime);
+    strcat(sFileNameTxt,sFileNameTime);
     strcpy(sFileNameBin,sFileNameTxt);
     strcat(sFileNameTxt,".txt");
     strcat(sFileNameBin,".bin");
@@ -576,12 +576,12 @@ int   OpenFiles(void)  {
     fprintf(pMetaFile,"Data Header Size: 32B  \r\n");
     fprintf(pMetaFile,"Data Header Format: \"@@...(18 times)...@@\" EpochTime[4B] NanoSeconds[4B] Tilt[6B] \r\n");
     fprintf(pMetaFile," .....\r\n");
-    fprintf(pMetaFile,"%s, %s \r\n",CruiseName,ShipName);
+    fprintf(pMetaFile,"%s, %s \r\n",CRUISE_NAME,SHIP_NAME);
     fprintf(pMetaFile,"File Created %s \r\n",sHeaderTime);
     
 }
 
-int   CloseFiles(uint16_t BlocksWritten)  {
+void   CloseFiles(uint16_t BlocksWritten)  {
     time_t rawtime;
     struct tm *timeinfo;
     char sbuffer[24];
@@ -595,8 +595,8 @@ int   CloseFiles(uint16_t BlocksWritten)  {
     fflush(pMetaFile);
     fflush(pDataFile);
     
-    fclose(pMetaFile)
-    fclose(pDataFile)
+    fclose(pMetaFile);
+    fclose(pDataFile);
     
 }
 
@@ -616,7 +616,7 @@ int  InitGPIO(void) {
     // FIRST, LET'S GET THE  GPIO PINS SQUARED AWAY
     
     // Set Input pins to input and remove pull-up resistors
-    for(i=0;1<12;i++) {
+    for(int  i=0;1<12;i++) {
         gpioSetMode(Lpins[i],PI_INPUT);
         gpioSetPullUpDown(Lpins[i], PI_PUD_OFF);
     }
@@ -656,6 +656,7 @@ void UpdateTilt(void) {
 }
 
 int OpenSerialPort(void) {
+    struct termios options;
     int sfd = open("/dev/serial0", O_RDWR | O_NOCTTY);
     
     if (sfd == -1) {

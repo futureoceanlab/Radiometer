@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <time.h>
+#include <sys/time.h>
 #include <sys/signal.h>
 #include <sys/errno.h>
 #include <sys/ioctl.h>
@@ -48,8 +48,8 @@
 // More efficient to spread data over 4KB
 #define DATA_HEADER_SIZE 32         // Number  of Bytes in the Header of each Data Block
 #define DATA_CHUNK_SIZE 4           // Number of Bytes per Data Chunk inside the Data Block: 2B time + 2B Data
-#define SAMPLES_PER_SEC = 12192     // Samples per second: this ensures precisely 12 blocks per sec
-//#define SAMPLES_PER_SEC = 16256     // Samples per second: this ensures precisely 16 blocks per sec
+#define SAMPLES_PER_SEC  12192     // Samples per second: this ensures precisely 12 blocks per sec
+//#define SAMPLES_PER_SEC  16256     // Samples per second: this ensures precisely 16 blocks per sec
 #define ONE_BILLION 1000000000L
 #define ONE_MILLION 1000000L
 
@@ -73,6 +73,38 @@ const uint16_t Lpins[] = {4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17};
 #define MAGNETOMETER_REG 0x45       // Magnetometer
 #define HEADING_REG 0x50            // Heading
 #define TEMP_REG 0x55               // Temperature
+
+
+// Timespec Macros from FreeBSD
+// https://github.com/freebsd/freebsd/blob/master/sys/sys/time.h
+// Converted to use  structs rather than pointers to structs (in a define)
+#define	timespecclear(tvp)	(tvp.tv_sec = tvp.tv_nsec = 0)
+
+#define	timespeccmp(tvp, uvp, cmp)					\
+	((tvp.tv_sec == uvp.tv_sec) ?				\
+	    (tvp.tv_nsec cmp uvp.tv_nsec) :			\
+	    (tvp.tv_sec cmp uvp.tv_sec))
+
+#define	timespecadd(tsp, usp, vsp)					\
+	do {								\
+		vsp.tv_sec = tsp.tv_sec + usp.tv_sec;		\
+		vsp.tv_nsec = tsp.tv_nsec + usp.tv_nsec;	\
+		if (vsp.tv_nsec >= 1000000000L) {			\
+			vsp.tv_sec++;				\
+			vsp.tv_nsec -= 1000000000L;			\
+		}							\
+	} while (0)
+
+
+#define	timespecsub(tsp, usp, vsp)					\
+	do {								\
+		vsp.tv_sec = tsp.tv_sec - usp.tv_sec;		\
+		vsp.tv_nsec = tsp.tv_nsec - usp.tv_nsec;	\
+		if (vsp.tv_nsec < 0) {				\
+			vsp.tv_sec--;				\
+			vsp.tv_nsec += 1000000000L;			\
+		}							\
+	} while (0)
 
 
 
@@ -127,8 +159,8 @@ void Log_Data();
 void Serial_Comms();
 
 // File IO
-int OpenFiles();
-int CloseFiles(uint16_t BlocksWritten);
+void OpenFiles();
+void CloseFiles(uint16_t BlocksWritten);
 
 // GPIO ACCESS
 int  InitGPIO(void);
@@ -163,7 +195,7 @@ void Sleep_ns(int);
 // Data Buffers -- Need to  be global to share across threads,
 //      and volitile  to force update  across threads
 static volatile uint16_t  B1[2048],  B2[2048];// Two Data Buffers, 4096B each
-static volatile uint16_t *pNewData, *pOldData, *pTmpData;  // To swap buffers elegantly.
+static uint16_t *pNewData, *pOldData, *pTmpData;  // To swap buffers elegantly.
 static volatile tTilt     Tilt;
 static volatile uint32_t  LastSecPhotonCount=0;
 static volatile uint32_t  LastBlockPhotonCount=0;
@@ -179,12 +211,18 @@ static volatile uint8_t fBufferFull=FALSE;
 static volatile uint8_t fCloseFiles=FALSE;
   // Tells WRITE_CORE to close  all open files.
   // Switched ON by SERIAL_CORE (wait til OFF), SWITCHED OFF by WRITE_CORE
+static volatile uint8_t fLogTerminated=TRUE;
+static volatile uint8_t fCountTerminated=TRUE;
+  // Tell Serial Thread that the Count and Log threads are done (data
+  // written to storage, files closed, etc) and ready to shutdown.
+
 
 // Timing Variables
 const uint16_t Nw = (DATA_BLOCK_SIZE - DATA_HEADER_SIZE)/DATA_CHUNK_SIZE;
 
 // Other Global Variables
 static int hI2C; // I2C  File Handle for Tilt sensor
+static FILE *pDataFile,*pMetaFile;
 
 // SERIAL Messages
 const char RadToken[]     = "RAD";
