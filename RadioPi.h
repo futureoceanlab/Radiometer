@@ -32,8 +32,6 @@
 
 
 
-
-
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  %                                                                             %
  %                           Preprocessor Defines                              %
@@ -41,8 +39,6 @@
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  */
 
-//#define HAND_WIRED_HAT              // The hand-wired protoboard, with  crazy pin  swaps
-#define SPUN_PCB_HAT                // The Lab-Spun Hat with bit-ganged GPIO pins
 #define FOL_RAD_VV 0.1              //  Radiometer Software Version
 #define DATA_BLOCK_SIZE 4096        // Number of Bytes per data block written to storage
 // SD writes are  made in  chunks of  512B
@@ -55,15 +51,19 @@
 #define ONE_MILLION 1000000L
 
 //  GPIO  Pin Definitions for PiHat
-#define PIN_nOUTEN      21 // Output Enable on the Latch
+//#define PIN_nOUTEN      21 // Output Enable on the Latch
+//#define PIN_LATCHEN     20 // Latch Enable
+//#define PIN_COUNTCLEAR  16 // Clear 12-bit Asynch Counter
+//#define PIN_HSTATE      18 // Hamamatu State Output
+#define PIN_nOUTEN      19 // Output Enable on the Latch
 #define PIN_LATCHEN     20 // Latch Enable
-#define PIN_COUNTCLEAR  16 // Clear 12-bit Asynch Counter
-#define PIN_HSTATE      18 // Hamamatu State Output
+#define PIN_COUNTCLEAR  18 // Clear 12-bit Asynch Counter
+#define PIN_HSTATE      21 // Hamamatu State Output
 const uint16_t Lpins = {4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17};
 
 // HMC6343 Definitions
 #define I2CBUS 1                    // Which bus: 0 [GPIO 0,1] or 1 [GPIO 2,3]
-#define HMC6343_ADDRESS 0x19        // Address of the hmc6343 itself
+#define HMC6343_ADDRESS 0x19        // Address of the hmc6343 = 0x32 >> 1
 //#define HMC6343_ADDRESS 0x32        // Address of the hmc6343 itself (for write -- read would be 0x33)
 #define ACCELEROMETER_REG 0x40      // Accelerometer
 #define MAGNETOMETER_REG 0x45       // Magnetometer
