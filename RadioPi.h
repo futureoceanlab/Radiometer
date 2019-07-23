@@ -249,6 +249,7 @@ const char msgLove[]      = "RAD It's what makes a Subaru a Subaru!\r\n";
 const char msgNotRad[]    = "RAD ... You talking to me? \r\n";
 const char msgPoweringDown[]  = "Preparing to Power Down... \r\n";
 const char msgPoweredDown[]   = "Ready to Power Down, you Monster... \r\n";
+const char msgGreetings[]   = "RAD -- Hellow Bigelow!! Hello DeepSee!!  \r\n";
 
 
 

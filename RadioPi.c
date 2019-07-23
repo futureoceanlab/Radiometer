@@ -204,28 +204,32 @@
 int main() {
 
     // SetSystemLowPower();
-    
+
+printf("Hello Bigelo!\r\n");
+
     InitGPIO();
-    
+
 	// TODO: Wait until ON signal has been received
 //    #pragma omp places(cores) proc_bind(spread)
     #pragma omp parallel num_threads(3)
     {
         #pragma omp single nowait
         {
-            Log_Data();
-		}
-		#pragma omp single nowait
-		{
-            Count_Photons();
-		}
-		#pragma omp single
-		{
-//            Serial_Comms();
-            Serial_Comms();
-		}
+printf("RAD Log_Data \r\n");
+//            Log_Data();
+	}
+	#pragma omp single nowait
+	{
+printf("RAD Count_Photons \r\n");
+//          Count_Photons();
+	}
+	#pragma omp single
+	{
+//printf("RAD Serial_Comms \r\n");
+          Serial_Comms();
+	}
     }
-	printf("0:finished\n");
+    printf("0:finished\n");
     return 0;
 }
 
@@ -466,8 +470,10 @@ void Serial_Comms()  {
     // system("sudo systemctl stop serial-getty@ttyAMA0.service");
 
     hSerial = OpenSerialPort();
+//    printf("OpenSerialPort %d",hSerial);
+    write(hSerial,msgGreetings,strlen(msgGreetings));
 
-    while(TRUE) {
+    while(FALSE) {
         ioctl(hSerial, FIONREAD, &bytes);
         
         if(bytes!=0){
@@ -643,7 +649,7 @@ int  InitGPIO(void) {
     // FIRST, LET'S GET THE  GPIO PINS SQUARED AWAY
     
     // Set Input pins to input and remove pull-up resistors
-    for(int  i=0;1<12;i++) {
+    for(int i=0; i<12; i++) {
         gpioSetMode(Lpins[i],PI_INPUT);
         gpioSetPullUpDown(Lpins[i], PI_PUD_OFF);
     }
@@ -684,8 +690,8 @@ void UpdateTilt(void) {
 
 int OpenSerialPort(void) {
     struct termios options;
-    int sfd = open("/dev/serial0", O_RDWR | O_NOCTTY);
-    
+    int sfd = open("/dev/serial1", O_RDWR | O_NOCTTY);
+    printf("Turned on Serial Port, %d",sfd);
     if (sfd == -1) {
         printf("Error no is : %d\n", errno);
         printf("Error description is : %s\n", strerror(errno));
