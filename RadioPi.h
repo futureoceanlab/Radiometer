@@ -39,6 +39,9 @@
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  */
 
+#define TRUE  (1==1)
+#define FALSE (!TRUE)
+
 #define FOL_RAD_VV 0.1              //  Radiometer Software Version
 #define DATA_BLOCK_SIZE 4096        // Number of Bytes per data block written to storage
 // SD writes are  made in  chunks of  512B

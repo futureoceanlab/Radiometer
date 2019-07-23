@@ -205,7 +205,8 @@ int main() {
     InitGPIO();
     
 	// TODO: Wait until ON signal has been received
-    #pragma omp parallel num_threads(3) places(cores) proc_bind(spread)
+    #pragma omp places(cores) proc_bind(spread)
+    #pragma omp parallel num_threads(3)
     {
         #pragma omp single nowait
         {
