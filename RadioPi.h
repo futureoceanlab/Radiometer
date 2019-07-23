@@ -60,7 +60,7 @@
 #define PIN_COUNTCLEAR  18 // Clear 12-bit Asynch Counter
 #define PIN_HSTATE      21 // Hamamatu State Output
 
-const uint16_t Lpins = {4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17};
+const uint16_t Lpins[] = {4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17};
 
 // HMC6343 Definitions
 #define I2CBUS 1                    // Which bus: 0 [GPIO 0,1] or 1 [GPIO 2,3]
@@ -178,34 +178,34 @@ static volatile uint8_t fCloseFiles=FALSE;
   // Switched ON by SERIAL_CORE (wait til OFF), SWITCHED OFF by WRITE_CORE
 
 // Timing Variables
-const uint16_t Nw = (BUF_SIZE - DATA_HEADER_SIZE)/DATA_CHUNK_SIZE;
+const uint16_t Nw = (DATA_BLOCK_SIZE - DATA_HEADER_SIZE)/DATA_CHUNK_SIZE;
 
 // Other Global Variables
 static int hI2C; // I2C  File Handle for Tilt sensor
 
 // SERIAL Messages
-const char *RadToken    = "RAD";
-const char *OnToken     = "ON";
-const char *OffToken    = "OFF";
-const char *WiFiToken   = "WIFI";
-const char *PowerToken  = "POWERDOWN";
-const char *HelpToken   = "HELP";
-const char *StatusToken = "STATUS";
-const char *LoveToken   = "LOVE";
+const char RadToken[]     = "RAD";
+const char OnToken[]      = "ON";
+const char OffToken[]     = "OFF";
+const char WiFiToken[]    = "WIFI";
+const char PowerToken[]   = "POWERDOWN";
+const char HelpToken[]    =  "HELP";
+const char StatusToken[]  = "STATUS";
+const char LoveToken[]    = "LOVE";
 
-const char cmdWiFiOn    = "sudo ifconfig wlan0 up";
-const char cmdWiFiOff   = "sudo ifconfig wlan0 down";
+const char cmdWiFiOn[]    = "sudo ifconfig wlan0 up";
+const char cmdWiFiOff[]   = "sudo ifconfig wlan0 down";
 
-const char msgError     = "Error... \r\n";
-const char msgOff       = "Stopping Photon Count... \r\n";
-const char msgWiFiOn    = "WiFi On \r\n";
-const char msgWiFiOn    = "WiFi Off \r\n";
-const char msgHelp      = "Piss Off \r\n";
-const char msgStatus    = "The System is Down...\r\n";
-const char msgLove      = "It's what makes a Subaru a Subaru!\r\n";
-const char msgNotRad    = "RAD ... You talking to me? \r\n";
-const char msgPoweringDown  = "Preparing to Power Down... \r\n";
-const char msgPoweredDown   = "Ready to Power Down, you Monster... \r\n";
+const char msgError[]     = "Error... \r\n";
+const char msgOff[]       = "Stopping Photon Count... \r\n";
+const char msgWiFiOn[]    = "WiFi On \r\n";
+const char msgWiFiOff[]   = "WiFi Off \r\n";
+const char msgHelp[]      = "Piss Off \r\n";
+const char msgStatus[]    = "The System is Down...\r\n";
+const char msgLove[]      = "It's what makes a Subaru a Subaru!\r\n";
+const char msgNotRad[]    = "RAD ... You talking to me? \r\n";
+const char msgPoweringDown[]  = "Preparing to Power Down... \r\n";
+const char msgPoweredDown[]   = "Ready to Power Down, you Monster... \r\n";
 
 
 
