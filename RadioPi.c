@@ -222,7 +222,7 @@ int main() {
 		#pragma omp single
 		{
 //            Serial_Comms();
-            Fake_Serial_Comms();
+            Serial_Comms();
 		}
     }
 	printf("0:finished\n");
@@ -563,127 +563,6 @@ void Serial_Comms()  {
     } // while()
     close(hSerial);
 }
-
-
-
-
-/*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
- %                                                                             %
- %                          Fake_Serial_Comms()                                %
- %                                                                             %
- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-Same job as the  Serial port, but automating for testing  purposes
- */
-void Fake_Serial_Comms()  {
-    char Rbuffer[64],Wbuffer[64];
-    
-    int bytes,n,hSerial;
-    const char WS[2] = " ";
-    char *token;
-//    unsigned int tyear,tmonth,tday,thour,tminute,tsec;
-    struct timespec NewTime;
-    struct tm tmNew;
-    
-    // system("sudo systemctl stop serial-getty@ttyAMA0.service");
-    
-    
-    while(TRUE) {
-        ioctl(hSerial, FIONREAD, &bytes);
-        
-        if(bytes!=0){
-            n = read(hSerial, Rbuffer, 64);
-            token = strtok(Rbuffer, WS);
-            
-            // Make sure the msg is intended for the Radiometer
-            if(strcmp(token,RadToken)==0) {
-                token = strtok(NULL,WS);
-                // ON
-                if(strcmp(token,OnToken)==0) {
-                    n = sscanf(Rbuffer,"ON %u:%u:%u %u:%u:%u \r\n",
-                               &tmNew.tm_year,
-                               &tmNew.tm_mon,
-                               &tmNew.tm_mday,
-                               &tmNew.tm_hour,
-                               &tmNew.tm_min,
-                               &tmNew.tm_sec);
-                    if(n==6) {  // Set Time and Start Logging Data
-                        tmNew.tm_isdst = 0; // ignore DST, we're all using UTC
-                        NewTime.tv_sec  = mktime(&tmNew);
-                        NewTime.tv_nsec = 0;
-                        clock_settime(CLOCK_REALTIME,&NewTime);
-                        sprintf(Wbuffer,"RAD ON %u:%u:%u %u:%u:%u \r\n",tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday, tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec);
-                        fLogData=TRUE;
-                        write(hSerial, Wbuffer,strlen(Wbuffer));
-                    }
-                    else {
-                        write(hSerial,msgErrorOn,strlen(msgErrorOn));
-                    }
-                }
-                // OFF
-                else if(strcmp(token,OffToken)==0) {
-                    fLogData=FALSE;
-                    write(hSerial, msgOff,strlen(msgOff));
-                }
-                // WIFI
-                else if(strcmp(token,WiFiToken)==0) {
-                    token = strtok(NULL,WS);
-                    // WIFI ON
-                    if(strcmp(token,OnToken)==0) {
-                        system(cmdWiFiOn);
-                        write(hSerial, msgWiFiOn,strlen(msgWiFiOn));
-                    }
-                    // WIFI  OFF
-                    else if(strcmp(token,OffToken)==0) {
-                        system(cmdWiFiOff);
-                        write(hSerial, msgWiFiOff,strlen(msgWiFiOff));
-                    }
-                }
-                // POWERDOWN
-                else if(strcmp(token,PowerToken)==0) {
-                    fLogData=FALSE;
-                    fCloseFiles=TRUE;
-                    write(hSerial, msgPoweringDown,strlen(msgPoweringDown));
-                    // Do  Stuff as needed
-                    sleep(5);
-                    // Make sure  you're ready TO  DIE!!!
-                    while(fLogTerminated || !fCountTerminated){}
-                    write(hSerial, msgPoweredDown,strlen(msgPoweredDown));
-                    
-                }
-                // HELP
-                else if(strcmp(token,HelpToken)==0) {
-                    write(hSerial, msgHelp,strlen(msgHelp));
-                }
-                // STATUS
-                else if(strcmp(token,StatusToken)==0) {
-                    write(hSerial, msgStatus,strlen(msgStatus));
-                }
-                // LOVE
-                else if(strcmp(token,LoveToken)==0) {
-                    write(hSerial, msgLove,strlen(msgLove));
-                }
-            } // if(strcmp(token,RadToken)==0)
-            else {
-                write(hSerial, msgNotRad,strlen(msgNotRad));
-            }
-        } // if(bytes!=0)
-        
-        if(fHeartbeatReady) {
-            fHeartbeatReady = FALSE;
-            clock_gettime(CLOCK_REALTIME,&NewTime);
-            sprintf(Wbuffer,"RAD %u:%u:%u %u:%u:%u %u %u %u %u \r\n",
-                    tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday,
-                    tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec,
-                    LastSecPhotonCount,Tilt.heading,Tilt.pitch,Tilt.roll);
-            fLogData=TRUE;
-            write(hSerial, Wbuffer,strlen(Wbuffer));
-        }
-        
-        
-    } // while()
-}
-
 
 
 

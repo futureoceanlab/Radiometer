@@ -157,7 +157,6 @@ typedef struct {
 void Count_Photons();
 void Log_Data();
 void Serial_Comms();
-void Fake_Serial_Comms();
 
 // File IO
 void OpenFiles();
