@@ -59,6 +59,7 @@
 #define PIN_LATCHEN     20 // Latch Enable
 #define PIN_COUNTCLEAR  18 // Clear 12-bit Asynch Counter
 #define PIN_HSTATE      21 // Hamamatu State Output
+
 const uint16_t Lpins = {4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17};
 
 // HMC6343 Definitions
@@ -124,13 +125,13 @@ void Serial_Comms();
 
 // File IO
 int OpenFiles();
-int CloseFiles(...);
+int CloseFiles(uint16_t BlocksWritten);
 
 // GPIO ACCESS
 int  InitGPIO(void);
 void CloseGPIO(void);
 void UpdateTilt(void);
-int  OpenSerialPort(void)
+int  OpenSerialPort(void);
 
 // TILT Helper  Functions
 void TiltReadReg(uint8_t register,int *,int *,int *);
