@@ -80,30 +80,31 @@ const uint16_t Lpins[] = {4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17};
 // Converted to use  structs rather than pointers to structs (in a define)
 #define	timespecclear(tvp)	(tvp.tv_sec = tvp.tv_nsec = 0)
 
-#define	timespeccmp(tvp, uvp, cmp)					\
-	((tvp.tv_sec == uvp.tv_sec) ?				\
-	    (tvp.tv_nsec cmp uvp.tv_nsec) :			\
+#define	timespeccmp(tvp, uvp, cmp)		\
+	((tvp.tv_sec == uvp.tv_sec) ?		\
+	    (tvp.tv_nsec cmp uvp.tv_nsec) :	\
 	    (tvp.tv_sec cmp uvp.tv_sec))
 
-#define	timespecadd(tsp, usp, vsp)					\
-	do {								\
+#define	timespecadd(tsp, usp, vsp)		            \
+	do {								            \
 		vsp.tv_sec = tsp.tv_sec + usp.tv_sec;		\
 		vsp.tv_nsec = tsp.tv_nsec + usp.tv_nsec;	\
 		if (vsp.tv_nsec >= 1000000000L) {			\
-			vsp.tv_sec++;				\
-			vsp.tv_nsec -= 1000000000L;			\
-		}							\
+			vsp.tv_sec++;				            \
+			vsp.tv_nsec -= 1000000000L;			    \
+		}							                \
 	} while (0)
 
 
 #define	timespecsub(tsp, usp, vsp)					\
-	do {								\
+	do {								            \
 		vsp.tv_sec = tsp.tv_sec - usp.tv_sec;		\
 		vsp.tv_nsec = tsp.tv_nsec - usp.tv_nsec;	\
-		if (vsp.tv_nsec < 0) {				\
-			vsp.tv_sec--;				\
-			vsp.tv_nsec += 1000000000L;			\
-		}							\
+		if (vsp.tv_nsec < 0) {				        \
+			vsp.tv_sec--;				            \
+			vsp.tv_nsec += 1000000000L;			    \
+		}
+\
 	} while (0)
 
 
@@ -157,6 +158,7 @@ typedef struct {
 void Count_Photons();
 void Log_Data();
 void Serial_Comms();
+void Fake_Serial_Comms();
 
 // File IO
 void OpenFiles();
@@ -215,7 +217,8 @@ static volatile uint8_t fLogTerminated=TRUE;
 static volatile uint8_t fCountTerminated=TRUE;
   // Tell Serial Thread that the Count and Log threads are done (data
   // written to storage, files closed, etc) and ready to shutdown.
-
+static volatile uint8_t fHeartBeatReady=FALSE;
+  // Flag letting Counter tell Serial that there's a heartbeat ready to go
 
 // Timing Variables
 const uint16_t Nw = (DATA_BLOCK_SIZE - DATA_HEADER_SIZE)/DATA_CHUNK_SIZE;
@@ -237,13 +240,14 @@ const char LoveToken[]    = "LOVE";
 const char cmdWiFiOn[]    = "sudo ifconfig wlan0 up";
 const char cmdWiFiOff[]   = "sudo ifconfig wlan0 down";
 
-const char msgError[]     = "Error... \r\n";
-const char msgOff[]       = "Stopping Photon Count... \r\n";
-const char msgWiFiOn[]    = "WiFi On \r\n";
-const char msgWiFiOff[]   = "WiFi Off \r\n";
-const char msgHelp[]      = "Piss Off \r\n";
-const char msgStatus[]    = "The System is Down...\r\n";
-const char msgLove[]      = "It's what makes a Subaru a Subaru!\r\n";
+const char msgError[]     = "RAD Error... \r\n";
+const char msgErrorOn[]   = "RAD Error: On Command Failed! \r\n";
+const char msgOff[]       = "RAD Stopping Photon Count... \r\n";
+const char msgWiFiOn[]    = "RAD WiFi On \r\n";
+const char msgWiFiOff[]   = "RAD WiFi Off \r\n";
+const char msgHelp[]      = "RAD Piss Off \r\n";
+const char msgStatus[]    = "RAD The System is Down...\r\n";
+const char msgLove[]      = "RAD It's what makes a Subaru a Subaru!\r\n";
 const char msgNotRad[]    = "RAD ... You talking to me? \r\n";
 const char msgPoweringDown[]  = "Preparing to Power Down... \r\n";
 const char msgPoweredDown[]   = "Ready to Power Down, you Monster... \r\n";
