@@ -459,11 +459,11 @@ void  Log_Data() {
 */
 
 void Serial_Comms()  {
-    char Rbuffer[64],Wbuffer[64],NewCommand[64],NextSnip[64],fNewCommand=FALSE;
+    char Rbuffer[64]="",Wbuffer[64]="",NewCommand[64]="",NextSnip[64]="",fNewCommand=FALSE;
     
-    int bytes,n,nn,hSerial;
+    uint n,nn,m,hSerial;
     const char WS[2] = " ";
-    char *token,*NextSnip;
+    char *token,*pNextBuff;
     struct timespec NewTime;
     struct tm tmNew;
 
@@ -507,19 +507,21 @@ void Serial_Comms()  {
 //                  i. echo buffer to stdio as warning
 //                  ii. clear buffer
         
-        if(n=serDataAvailable(hSerial)) {
+        if((n=serDataAvailable(hSerial))) {
             nn = (n<(64-strlen(Rbuffer)) ? n : (64-strlen(Rbuffer)) );
             if(nn!=n) serWrite(hSerial,(char *) msgErrorStringBufferOverflow,strlen(msgErrorStringBufferOverflow));
             m  =  serRead(hSerial,NextSnip,nn);
             if(m!=nn) serWrite(hSerial,(char *) msgErrorStringBuffer,strlen(msgErrorStringBuffer));
             strcat(Rbuffer,NextSnip);
-            
-            if(NewCommand = strtok(Rbuffer,'\n')) {
+
+            if(strchr(Rbuffer, '\n')) {
                 fNewCommand=TRUE;
-                pNextBuff =strtok(NULL,"");
-                strcpy(NextSnip,pNextBUFF);
-                strcpy(Rbuffer,NextSnip);
+                strcpy(NewCommand,Rbuffer);
+                token=strtok(NewCommand,"\n");
+                if((pNextBuff =strtok(NULL,""))) strcpy(Rbuffer,pNextBuff);
+                else strcpy(Rbuffer,"");
             }
+            else if(nn!=n) strcpy(Rbuffer,""); // Reser Rbuffer after overflow
         }
 
         
@@ -548,14 +550,14 @@ void Serial_Comms()  {
                         clock_settime(CLOCK_REALTIME,&NewTime);
                         sprintf(Wbuffer,"RAD ON %u:%u:%u %u:%u:%u \r\n",tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday, tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec);
                         fLogData=TRUE;
-                        serWrite(hSerial, Wbuffer,strlen(Wbuffer));
+                        serWrite(hSerial, (char *)Wbuffer,strlen(Wbuffer));
                     }
-                    else {serWrite(hSerial,msgErrorOn,strlen(msgErrorOn));}
+                    else {serWrite(hSerial,(char *)msgErrorOn,strlen(msgErrorOn));}
                 }
                 // OFF
                 else if(strcmp(token,OffToken)==0) {
                     fLogData=FALSE;
-                    serWrite(hSerial, msgOff,strlen(msgOff));
+                    serWrite(hSerial, (char *)msgOff,strlen(msgOff));
                 }
                 // WIFI
                 else if(strcmp(token,WiFiToken)==0) {
@@ -563,34 +565,34 @@ void Serial_Comms()  {
                     // WIFI ON
                     if(strcmp(token,OnToken)==0) {
                         system(cmdWiFiOn);
-                        serWrite(hSerial, msgWiFiOn,strlen(msgWiFiOn));
+                        serWrite(hSerial, (char *)msgWiFiOn,strlen(msgWiFiOn));
                     }
                     // WIFI  OFF
                     else if(strcmp(token,OffToken)==0) {
                         system(cmdWiFiOff);
-                        serWrite(hSerial, msgWiFiOff,strlen(msgWiFiOff));
+                        serWrite(hSerial, (char *)msgWiFiOff,strlen(msgWiFiOff));
                     }
                 }
                 // POWERDOWN
                 else if(strcmp(token,PowerToken)==0) {
                     fLogData=FALSE;
                     fCloseFiles=TRUE;
-                    serWrite(hSerial, msgPoweringDown,strlen(msgPoweringDown));
+                    serWrite(hSerial, (char *)msgPoweringDown,strlen(msgPoweringDown));
                     // Do  Stuff as needed
                     sleep(5);
                     // Make sure  you're ready TO  DIE!!!
                     while(fLogTerminated || !fCountTerminated){}
-                    serWrite(hSerial, msgPoweredDown,strlen(msgPoweredDown));
+                    serWrite(hSerial, (char *)msgPoweredDown,strlen(msgPoweredDown));
                     
                 }
                 // HELP
-                else if(strcmp(token,HelpToken)==0) {serWrite(hSerial, msgHelp,strlen(msgHelp));}
+                else if(strcmp(token,HelpToken)==0) {serWrite(hSerial, (char *)msgHelp,strlen(msgHelp));}
                 // STATUS
-                else if(strcmp(token,StatusToken)==0) {serWrite(hSerial, msgStatus,strlen(msgStatus));}
+                else if(strcmp(token,StatusToken)==0) {serWrite(hSerial, (char *)msgStatus,strlen(msgStatus));}
                 // LOVE
-                else if(strcmp(token,LoveToken)==0) {serWrite(hSerial, msgLove,strlen(msgLove));};
+                else if(strcmp(token,LoveToken)==0) {serWrite(hSerial, (char *)msgLove,strlen(msgLove));};
             } // if(strcmp(token,RadToken)==0)
-            else {serWrite(hSerial, msgNotRad,strlen(msgNotRad))};
+            else {serWrite(hSerial, (char *)msgNotRad,strlen(msgNotRad));};
         }
         
         // 3. If(fHeartbeatReady) Send 1Hz heartbeat over serial
@@ -610,7 +612,9 @@ void Serial_Comms()  {
         
          } // if(bytes!=0)
     } // while()
+
     serClose(hSerial);
+
 }
 
 

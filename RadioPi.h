@@ -241,6 +241,8 @@ const char cmdWiFiOff[]   = "sudo ifconfig wlan0 down";
 
 const char msgError[]     = "RAD Error... \r\n";
 const char msgErrorOn[]   = "RAD Error: On Command Failed! \r\n";
+const char msgErrorStringBuffer[]   = "RAD Error: Buffer Parse in CLI...  \r\n";
+const char msgErrorStringBufferOverflow[]   = "RAD Error: Buffer Overflow in CLI...  \r\n";
 const char msgOff[]       = "RAD Stopping Photon Count... \r\n";
 const char msgWiFiOn[]    = "RAD WiFi On \r\n";
 const char msgWiFiOff[]   = "RAD WiFi Off \r\n";
