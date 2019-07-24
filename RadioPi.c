@@ -436,19 +436,19 @@ void  Log_Data() {
  RRRRR            Roll (in 1/10s of degrees)
  
  6. To  prepare the system to PowerDown:
- <== "RAD Power Down\r\n"
+ <== "RAD Power Down \r\n"
  Response:
  ==> "RAD Powering Down... \r\n"
  <<wait>>
  ==> "RAD Ready to  power  down. \r\n"
  
  7. To turn  WIFI On
- <== "RAD WiFi On\r\n"
+ <== "RAD WiFi On \r\n"
  Response:
- ==> "RAD WiFi On\r\n"
+ ==> "RAD WiFi On \r\n"
  
  8. To turn  WIFI Off
- <== "RAD WiFi Off\r\n"
+ <== "RAD WiFi Off \r\n"
  Response:
  ==> "RAD WiFi Off \r\n"
  
@@ -459,11 +459,11 @@ void  Log_Data() {
 */
 
 void Serial_Comms()  {
-    char Rbuffer[64],Wbuffer[64],NextChar,NewCommand[64],fNewCommand;
+    char Rbuffer[64],Wbuffer[64],NewCommand[64],NextSnip[64],fNewCommand=FALSE;
     
-    int bytes,n,hSerial;
+    int bytes,n,nn,hSerial;
     const char WS[2] = " ";
-    char *token;
+    char *token,*NextSnip;
     struct timespec NewTime;
     struct tm tmNew;
 
@@ -474,52 +474,67 @@ void Serial_Comms()  {
     serWrite(hSerial,(char *) msgGreetings,strlen(msgGreetings));
 
     while(FALSE) {
-        // OUTLINE:
-        //
-        // 1. If there's data in the queue:
-        //      a. Read data and append to Rbuffer, being careful to
-        //          avoid overflow.
-        //      b. If the buffer contains a full command (ends with '\n')
-        //          i. put the command in NewCommand
-        //          ii. leave any overflow past the '\n' in RBuffer
-        //          iii. set fNewCommand = TRUE;
-        //      c. Elseif Buffer Overflowing
-        //          i. echo buffer to stdio as warning
-        //          ii. clear buffer
-        //
-        // 2. If(fNewCommand)
-        //      a. Parse NewCommand
-        //      b. fNewCommand = FALSE
-        //
-        // 3. If(fHeartbeatReady) Send 1Hz heartbeat over serial
+//         OUTLINE:
+//
+//         1. If there's data in the queue:
+//              a. Read data and append to Rbuffer, being careful to
+//                  avoid overflow.
+//              b. If the buffer contains a full command (ends with '\n')
+//                  i. put the command in NewCommand
+//                  ii. leave any overflow past the '\n' in RBuffer
+//                  iii. set fNewCommand = TRUE;
+//              c. Elseif Buffer Overflowing
+//                  i. echo buffer to stdio as warning
+//                  ii. clear buffer
+//
+//         2. If(fNewCommand)
+//              a. Parse NewCommand
+//              b. fNewCommand = FALSE
+//
+//         3. If(fHeartbeatReady) Send 1Hz heartbeat over serial
+//
+//
+//         IMPLEMENTATION
+//
+//         1. If there's data in the queue:
+//              a. Read data and append to Rbuffer, being careful to
+//                  avoid overflow.
+//              b. If the buffer contains a full command (ends with '\n')
+//                  i. put the command in NewCommand
+//                  ii. leave any overflow past the '\n' in RBuffer
+//                  iii. set fNewCommand = TRUE;
+//              c. Elseif Buffer Overflowing
+//                  i. echo buffer to stdio as warning
+//                  ii. clear buffer
+        
+        if(n=serDataAvailable(hSerial)) {
+            nn = (n<(64-strlen(Rbuffer)) ? n : (64-strlen(Rbuffer)) );
+            if(nn!=n) serWrite(hSerial,(char *) msgErrorStringBufferOverflow,strlen(msgErrorStringBufferOverflow));
+            m  =  serRead(hSerial,NextSnip,nn);
+            if(m!=nn) serWrite(hSerial,(char *) msgErrorStringBuffer,strlen(msgErrorStringBuffer));
+            strcat(Rbuffer,NextSnip);
+            
+            if(NewCommand = strtok(Rbuffer,'\n')) {
+                fNewCommand=TRUE;
+                pNextBuff =strtok(NULL,"");
+                strcpy(NextSnip,pNextBUFF);
+                strcpy(Rbuffer,NextSnip);
+            }
+        }
 
-        
-        // IMPLEMENTATION
-        
-        // 1. If there's data in the queue:
-        //      a. Read data and append to Rbuffer, being careful to
-        //          avoid overflow.
-        //      b. If the buffer contains a full command (ends with '\n')
-        //          i. put the command in NewCommand
-        //          ii. leave any overflow past the '\n' in RBuffer
-        //          iii. set fNewCommand = TRUE;
-        //      c. Elseif Buffer Overflowing
-        //          i. echo buffer to stdio as warning
-        //          ii. clear buffer
-
-        
-        /* THIS NEEDS TO BE REPLACED!!!!! */
         
         
         // 2. If(NewCommand)
         if(fNewCommand) {
+            //      b. fNewCommand = FALSE
+            fNewCommand=FALSE;
             //      a. Parse NewCommand
             token = strtok(NewCommand, WS);
             if(strcmp(token,RadToken)==0) {
                 token = strtok(NULL,WS);
                 // ON
                 if(strcmp(token,OnToken)==0) {
-                    n = sscanf(NewCommand,"RAD ON %u:%u:%u %u:%u:%u \r\n",
+                    n = sscanf(NewCommand,"RAD ON %u:%u:%u %u:%u:%u \r",
                                &tmNew.tm_year,
                                &tmNew.tm_mon,
                                &tmNew.tm_mday,
@@ -576,8 +591,6 @@ void Serial_Comms()  {
                 else if(strcmp(token,LoveToken)==0) {serWrite(hSerial, msgLove,strlen(msgLove));};
             } // if(strcmp(token,RadToken)==0)
             else {serWrite(hSerial, msgNotRad,strlen(msgNotRad))};
-            //      b. fNewCommand = FALSE
-            fNewCommand = FALSE;
         }
         
         // 3. If(fHeartbeatReady) Send 1Hz heartbeat over serial
@@ -593,19 +606,11 @@ void Serial_Comms()  {
         }
 
         
-//        if(n=serDataAvailable(hSerial)) {
-//            m  =  serRead(hSerial,NextSnip,n);
-//            token = strtok(Rbuffer, WS);
-//
-//        for(int j=0;j<n;j++) {
-//                 NextChar  = serReadByte(hSample);
-//                 if(NextChar=='\n') j=n;
-//             };
         
         
          } // if(bytes!=0)
     } // while()
-    close(hSerial);
+    serClose(hSerial);
 }
 
 
