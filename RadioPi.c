@@ -1,5 +1,4 @@
-/*
- RadioPi.c
+/* RadioPi.c
  
  Allan Adams(1,2), Jake Bernstein (1), JunSu Jang (1)
  
@@ -211,19 +210,19 @@ printf("Hello Bigelo!\r\n");
 
 	// TODO: Wait until ON signal has been received
 //    #pragma omp places(cores) proc_bind(spread)
-    #pragma omp parallel num_threads(3)
+//    #pragma omp parallel num_threads(3)
     {
-        #pragma omp single nowait
+//        #pragma omp single nowait
         {
 printf("RAD Log_Data \r\n");
 //            Log_Data();
 	}
-	#pragma omp single nowait
+//	#pragma omp single nowait
 	{
 printf("RAD Count_Photons \r\n");
 //          Count_Photons();
 	}
-	#pragma omp single
+//	#pragma omp single
 	{
 //printf("RAD Serial_Comms \r\n");
           Serial_Comms();
@@ -469,11 +468,12 @@ void Serial_Comms()  {
 
     // USE PIGPIO Serial interface
     
-    hSerial = serOpen("/dev/serial0", 19200, 0);
-    printf("Turned on Serial Port, %d",hSerial);
-    serWrite(hSerial,(char *) msgGreetings,strlen(msgGreetings));
+    hSerial = serOpen("/dev/ttyAMA0", 19200, 0);
+    printf("Turned on Serial Port, %d \n",hSerial);
+//    serWrite(hSerial,(char *) msgGreetings,strlen(msgGreetings));
+printf("Serial Writting sttarred...\n");
 
-    while(FALSE) {
+    while(TRUE) {
 //         OUTLINE:
 //
 //         1. If there's data in the queue:
@@ -506,26 +506,45 @@ void Serial_Comms()  {
 //              c. Elseif Buffer Overflowing
 //                  i. echo buffer to stdio as warning
 //                  ii. clear buffer
-        
+
+
+/*
         if((n=serDataAvailable(hSerial))) {
+printf("Serial  Data Coming In...\n");
             nn = (n<(64-strlen(Rbuffer)) ? n : (64-strlen(Rbuffer)) );
             if(nn!=n) serWrite(hSerial,(char *) msgErrorStringBufferOverflow,strlen(msgErrorStringBufferOverflow));
             m  =  serRead(hSerial,NextSnip,nn);
             if(m!=nn) serWrite(hSerial,(char *) msgErrorStringBuffer,strlen(msgErrorStringBuffer));
+printf("Read Snip: %s \n",NextSnip);
             strcat(Rbuffer,NextSnip);
+printf("New Rbuffer: %s \n",Rbuffer);
 
-            if(strchr(Rbuffer, '\n')) {
+
+            if((pNextBuff=strchr(Rbuffer, '\n'))) {
+printf("NewCommand Detected....\n");
                 fNewCommand=TRUE;
                 strcpy(NewCommand,Rbuffer);
+printf("Raw NewCommand: %s \n",NewCommand);
                 token=strtok(NewCommand,"\n");
-                if((pNextBuff =strtok(NULL,""))) strcpy(Rbuffer,pNextBuff);
-                else strcpy(Rbuffer,"");
+printf("strtok NewCommand: %s \n",NewCommand);
+		strcpy(NextSnip,pNextBuff+1);
+                strcpy(Rbuffer,NextSnip);
+printf("Remaining Rbuffer: %s \n",Rbuffer);
             }
             else if(nn!=n) strcpy(Rbuffer,""); // Reser Rbuffer after overflow
         }
+*/
 
-        
-        
+
+        if((n=serDataAvailable(hSerial))) {
+            m  =  serRead(hSerial,Rbuffer,n);
+            if(m!=n) serWrite(hSerial,(char *) msgErrorStringBuffer,strlen(msgErrorStringBuffer));
+            if((token=strtok(Rbuffer,"\n"))) {
+                strcpy(NewCommand,token);
+                fNewCommand = TRUE;
+            }
+        }
+
         // 2. If(NewCommand)
         if(fNewCommand) {
             //      b. fNewCommand = FALSE
@@ -610,7 +629,6 @@ void Serial_Comms()  {
         
         
         
-         } // if(bytes!=0)
     } // while()
 
     serClose(hSerial);
