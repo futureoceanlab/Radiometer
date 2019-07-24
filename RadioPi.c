@@ -49,10 +49,10 @@
  least 12.7. We skin that cat by using a fast (95MHz) 5V 12-bit asynchronous
  counter, the TI SN74LV4040, and sampling the counter at a slightly higher
  frequency than 10kHz. This counter has two inputs:
- CLK     falling edges to CLK increment the 12-bit output by 1 with a
- roughly 5-10ns delay
- CLR     Pulling CLR high for at least 5ns clears the 12-bit output
- registers, again with a ~5ns dealay
+    CLK     falling edges to CLK increment the 12-bit output by 1 with a
+            roughly 5-10ns delay
+    CLR     Pulling CLR high for at least 5ns clears the 12-bit output
+            registers, again with a ~5ns dealay
  Sampling at 12kHz gives us a max of about 49MHz, right at our expected maximum
  hit rate, while 16kHz gives us about 67MHz, our maximum theoretically possible
  result (and thus a small buffer).
@@ -459,50 +459,67 @@ void  Log_Data() {
 */
 
 void Serial_Comms()  {
-    char Rbuffer[64],Wbuffer[64],NextChar;
+    char Rbuffer[64],Wbuffer[64],NextChar,NewCommand[64],fNewCommand;
     
     int bytes,n,hSerial;
     const char WS[2] = " ";
     char *token;
-//    unsigned int tyear,tmonth,tday,thour,tminute,tsec;
     struct timespec NewTime;
     struct tm tmNew;
 
-//    hSerial = OpenSerialPort();
+    // USE PIGPIO Serial interface
+    
     hSerial = serOpen("/dev/serial0", 19200, 0);
     printf("Turned on Serial Port, %d",hSerial);
-
-#ifdef C_SERIAL
-    write(hSerial,msgGreetings,strlen(msgGreetings));
-#elif PIGPIO_SERIAL
     serWrite(hSerial,(char *) msgGreetings,strlen(msgGreetings));
-#endif
 
     while(FALSE) {
+        // OUTLINE:
+        //
+        // 1. If there's data in the queue:
+        //      a. Read data and append to Rbuffer, being careful to
+        //          avoid overflow.
+        //      b. If the buffer contains a full command (ends with '\n')
+        //          i. put the command in NewCommand
+        //          ii. leave any overflow past the '\n' in RBuffer
+        //          iii. set fNewCommand = TRUE;
+        //      c. Elseif Buffer Overflowing
+        //          i. echo buffer to stdio as warning
+        //          ii. clear buffer
+        //
+        // 2. If(fNewCommand)
+        //      a. Parse NewCommand
+        //      b. fNewCommand = FALSE
+        //
+        // 3. If(fHeartbeatReady) Send 1Hz heartbeat over serial
 
-#ifdef C_SERIAL
+        
+        // IMPLEMENTATION
+        
+        // 1. If there's data in the queue:
+        //      a. Read data and append to Rbuffer, being careful to
+        //          avoid overflow.
+        //      b. If the buffer contains a full command (ends with '\n')
+        //          i. put the command in NewCommand
+        //          ii. leave any overflow past the '\n' in RBuffer
+        //          iii. set fNewCommand = TRUE;
+        //      c. Elseif Buffer Overflowing
+        //          i. echo buffer to stdio as warning
+        //          ii. clear buffer
 
-        ioctl(hSerial, FIONREAD, &bytes);
-
-        if(bytes!=0){
-            n = read(hSerial, Rbuffer, 64);
-            token = strtok(Rbuffer, WS);
-
-#elif PIGPIO_SERIAL
-
-          if(n=serDataAvailable(hSerial))
-             for(int j=0;j<n;j++) {
-                 NextChar  = serReadByte(hSample);
-                 if(NextChar=='\n') j=n;
-             };
-
-#endif
-            // Make sure the msg is intended for the Radiometer
+        
+        /* THIS NEEDS TO BE REPLACED!!!!! */
+        
+        
+        // 2. If(NewCommand)
+        if(fNewCommand) {
+            //      a. Parse NewCommand
+            token = strtok(NewCommand, WS);
             if(strcmp(token,RadToken)==0) {
                 token = strtok(NULL,WS);
                 // ON
                 if(strcmp(token,OnToken)==0) {
-                    n = sscanf(Rbuffer,"ON %u:%u:%u %u:%u:%u \r\n",
+                    n = sscanf(NewCommand,"RAD ON %u:%u:%u %u:%u:%u \r\n",
                                &tmNew.tm_year,
                                &tmNew.tm_mon,
                                &tmNew.tm_mday,
@@ -516,16 +533,14 @@ void Serial_Comms()  {
                         clock_settime(CLOCK_REALTIME,&NewTime);
                         sprintf(Wbuffer,"RAD ON %u:%u:%u %u:%u:%u \r\n",tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday, tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec);
                         fLogData=TRUE;
-                        write(hSerial, Wbuffer,strlen(Wbuffer));
+                        serWrite(hSerial, Wbuffer,strlen(Wbuffer));
                     }
-                    else {
-                        write(hSerial,msgErrorOn,strlen(msgErrorOn));
-                    }
+                    else {serWrite(hSerial,msgErrorOn,strlen(msgErrorOn));}
                 }
                 // OFF
                 else if(strcmp(token,OffToken)==0) {
                     fLogData=FALSE;
-                    write(hSerial, msgOff,strlen(msgOff));
+                    serWrite(hSerial, msgOff,strlen(msgOff));
                 }
                 // WIFI
                 else if(strcmp(token,WiFiToken)==0) {
@@ -533,56 +548,62 @@ void Serial_Comms()  {
                     // WIFI ON
                     if(strcmp(token,OnToken)==0) {
                         system(cmdWiFiOn);
-                        write(hSerial, msgWiFiOn,strlen(msgWiFiOn));
+                        serWrite(hSerial, msgWiFiOn,strlen(msgWiFiOn));
                     }
                     // WIFI  OFF
                     else if(strcmp(token,OffToken)==0) {
                         system(cmdWiFiOff);
-                        write(hSerial, msgWiFiOff,strlen(msgWiFiOff));
+                        serWrite(hSerial, msgWiFiOff,strlen(msgWiFiOff));
                     }
                 }
                 // POWERDOWN
                 else if(strcmp(token,PowerToken)==0) {
                     fLogData=FALSE;
                     fCloseFiles=TRUE;
-                    write(hSerial, msgPoweringDown,strlen(msgPoweringDown));
+                    serWrite(hSerial, msgPoweringDown,strlen(msgPoweringDown));
                     // Do  Stuff as needed
                     sleep(5);
                     // Make sure  you're ready TO  DIE!!!
                     while(fLogTerminated || !fCountTerminated){}
-                    write(hSerial, msgPoweredDown,strlen(msgPoweredDown));
-
+                    serWrite(hSerial, msgPoweredDown,strlen(msgPoweredDown));
+                    
                 }
                 // HELP
-                else if(strcmp(token,HelpToken)==0) {
-                    write(hSerial, msgHelp,strlen(msgHelp));
-                }
+                else if(strcmp(token,HelpToken)==0) {serWrite(hSerial, msgHelp,strlen(msgHelp));}
                 // STATUS
-                else if(strcmp(token,StatusToken)==0) {
-                    write(hSerial, msgStatus,strlen(msgStatus));
-                }
+                else if(strcmp(token,StatusToken)==0) {serWrite(hSerial, msgStatus,strlen(msgStatus));}
                 // LOVE
-                else if(strcmp(token,LoveToken)==0) {
-                    write(hSerial, msgLove,strlen(msgLove));
-                }
+                else if(strcmp(token,LoveToken)==0) {serWrite(hSerial, msgLove,strlen(msgLove));};
             } // if(strcmp(token,RadToken)==0)
-            else {
-                write(hSerial, msgNotRad,strlen(msgNotRad));
-            }
-        } // if(bytes!=0)
+            else {serWrite(hSerial, msgNotRad,strlen(msgNotRad))};
+            //      b. fNewCommand = FALSE
+            fNewCommand = FALSE;
+        }
         
+        // 3. If(fHeartbeatReady) Send 1Hz heartbeat over serial
         if(fHeartbeatReady) {
-            fHeartbeatReady = FALSE;
             clock_gettime(CLOCK_REALTIME,&NewTime);
+            fHeartbeatReady = FALSE;
             sprintf(Wbuffer,"RAD %u:%u:%u %u:%u:%u %u %u %u %u \r\n",
                     tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday,
                     tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec,
                     LastSecPhotonCount,Tilt.heading,Tilt.pitch,Tilt.roll);
             fLogData=TRUE;
-            write(hSerial, Wbuffer,strlen(Wbuffer));
+            serWrite(hSerial,Wbuffer,strlen(Wbuffer));
         }
 
         
+//        if(n=serDataAvailable(hSerial)) {
+//            m  =  serRead(hSerial,NextSnip,n);
+//            token = strtok(Rbuffer, WS);
+//
+//        for(int j=0;j<n;j++) {
+//                 NextChar  = serReadByte(hSample);
+//                 if(NextChar=='\n') j=n;
+//             };
+        
+        
+         } // if(bytes!=0)
     } // while()
     close(hSerial);
 }
