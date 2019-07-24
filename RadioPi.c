@@ -457,8 +457,9 @@ void  Log_Data() {
  Response:
  ==> "<LIST OF COMMANDS> \r\n"
 */
+
 void Serial_Comms()  {
-    char Rbuffer[64],Wbuffer[64];
+    char Rbuffer[64],Wbuffer[64],NextChar;
     
     int bytes,n,hSerial;
     const char WS[2] = " ";
@@ -467,19 +468,35 @@ void Serial_Comms()  {
     struct timespec NewTime;
     struct tm tmNew;
 
-    // system("sudo systemctl stop serial-getty@ttyAMA0.service");
+//    hSerial = OpenSerialPort();
+    hSerial = serOpen("/dev/serial0", 19200, 0);
+    printf("Turned on Serial Port, %d",hSerial);
 
-    hSerial = OpenSerialPort();
-//    printf("OpenSerialPort %d",hSerial);
+#ifdef C_SERIAL
     write(hSerial,msgGreetings,strlen(msgGreetings));
+#elif PIGPIO_SERIAL
+    serWrite(hSerial,(char *) msgGreetings,strlen(msgGreetings));
+#endif
 
     while(FALSE) {
+
+#ifdef C_SERIAL
+
         ioctl(hSerial, FIONREAD, &bytes);
-        
+
         if(bytes!=0){
             n = read(hSerial, Rbuffer, 64);
             token = strtok(Rbuffer, WS);
-            
+
+#elif PIGPIO_SERIAL
+
+          if(n=serDataAvailable(hSerial))
+             for(int j=0;j<n;j++) {
+                 NextChar  = serReadByte(hSample);
+                 if(NextChar=='\n') j=n;
+             };
+
+#endif
             // Make sure the msg is intended for the Radiometer
             if(strcmp(token,RadToken)==0) {
                 token = strtok(NULL,WS);
@@ -689,8 +706,9 @@ void UpdateTilt(void) {
 }
 
 int OpenSerialPort(void) {
+#ifdef  C_SERIAL
     struct termios options;
-    int sfd = open("/dev/serial1", O_RDWR | O_NOCTTY);
+    int sfd = open("/dev/serial0", O_RDWR | O_NOCTTY);
     printf("Turned on Serial Port, %d",sfd);
     if (sfd == -1) {
         printf("Error no is : %d\n", errno);
@@ -709,6 +727,11 @@ int OpenSerialPort(void) {
     
     tcsetattr(sfd, TCSANOW, &options);
     
+    return sfd;
+#elif PIGPIO_SERIAL
+    int sfd = serOpen("/dev/serial0", B19200, 0);
+    printf("Turned on Serial Port, %d",sfd);
+#endif
     return sfd;
 }; // OpenSerialPort
 

@@ -62,8 +62,9 @@
 #define PIN_LATCHEN     20 // Latch Enable
 #define PIN_COUNTCLEAR  18 // Clear 12-bit Asynch Counter
 #define PIN_HSTATE      21 // Hamamatu State Output
-
 const uint16_t Lpins[] = {4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17};
+//#define C_SERIAL 1
+#define PIGPIO_SERIAL 1
 
 // HMC6343 Definitions
 #define I2CBUS 1                    // Which bus: 0 [GPIO 0,1] or 1 [GPIO 2,3]
