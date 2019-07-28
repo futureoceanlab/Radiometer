@@ -202,32 +202,27 @@
  */
 int main() {
 
-    // SetSystemLowPower();
-
-printf("Hello Bigelo!\r\n");
+    printf("Hello %s! \r\n",SHIP_NAME);
 
     InitGPIO();
+    
+    OpenFiles();
+    CloseFiles(42);
 
 	// TODO: Wait until ON signal has been received
 //    #pragma omp places(cores) proc_bind(spread)
-//    #pragma omp parallel num_threads(3)
+//    #pragma omp parallel num_threads(2)
     {
 //        #pragma omp single nowait
         {
-printf("RAD Log_Data \r\n");
+//            printf("RAD Log_Data \r\n");
 //            Log_Data();
 	}
 //	#pragma omp single nowait
 	{
-printf("RAD Count_Photons \r\n");
+//        printf("RAD Count_Photons \r\n");
 //          Count_Photons();
 	}
-//	#pragma omp single
-	{
-//printf("RAD Serial_Comms \r\n");
-          Serial_Comms();
-	}
-    }
     printf("0:finished\n");
     return 0;
 }
@@ -360,6 +355,7 @@ void  Log_Data() {
     uint32_t BlocksWritten=0;
 
     while(TRUE){
+        
         while(fLogData)  {
             
             if(!fFilesOpen) {OpenFiles(); fFilesOpen=TRUE; BlocksWritten = 0;}
@@ -393,249 +389,6 @@ void  Log_Data() {
 }
 
 
-/*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
- %                                                                             %
- %                             Serial_Comms()                                  %
- %                                                                             %
- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
- */
-/*  Serial Comms Interface Specification:
-
- 1. Serial Interface:
- RS232 19200 8N1
- 
- 2. Upon startup, system will output a greeting on the serial line:
- ==> "Radiometer RAD.VV starting up... \r\n"
- VV               Version (2 ascii symbols)
- Followed shortly thereafter by a state data dump for the record:
- ==> "RAD Setup Data: [comma separated string] \r\n”
- 
- 3. To begin data recording and set clock:
- <== “RAD ON yyyy:mm:dd hh:mm:ss.sss \r\n”
- Response:
- ==> “RAD ON yyyy:mm:dd hh:mm:ss.sss \r\n” followed by 1Hz data stream
- OR
- ==> “RAD ERROR: <MESSAGE STRING> \r\n” and no heartbeat
- 
- 4. To pause data recording:
- <== “RAD OFF \r\n”
- Response:
- ==> “RAD OFF \r\n”  followed by cessation of 1Hz data stream
- 
- 5. 1Hz Heartbeat ASCII Format:
- ==> “RAD.VV yyyy:mm:dd  hh:mm:ss DDDDDDDDDD HHHHH PPPPP RRRRR \r\n"
- OR
- ==> “RAD ERROR: <MESSAGE STRING> \r\n"
- VV               Version
- yyyy:mm:dd       year:month:day
- hh:mm:ss         UTC
- DDDDDDDDDD       Photon count during  previous second  (uint32_t)
- HHHHH            Heading (in 1/10s of degrees)
- PPPPP            Pitch (in 1/10s of degrees)
- RRRRR            Roll (in 1/10s of degrees)
- 
- 6. To  prepare the system to PowerDown:
- <== "RAD Power Down \r\n"
- Response:
- ==> "RAD Powering Down... \r\n"
- <<wait>>
- ==> "RAD Ready to  power  down. \r\n"
- 
- 7. To turn  WIFI On
- <== "RAD WiFi On \r\n"
- Response:
- ==> "RAD WiFi On \r\n"
- 
- 8. To turn  WIFI Off
- <== "RAD WiFi Off \r\n"
- Response:
- ==> "RAD WiFi Off \r\n"
- 
- 9. For help with commands:
- <== "RAD Help \r\n"
- Response:
- ==> "<LIST OF COMMANDS> \r\n"
-*/
-
-void Serial_Comms()  {
-    char Rbuffer[64]="",Wbuffer[64]="",NewCommand[64]="",NextSnip[64]="",fNewCommand=FALSE;
-    
-    uint n,nn,m,hSerial;
-    const char WS[2] = " ";
-    char *token,*pNextBuff;
-    struct timespec NewTime;
-    struct tm tmNew;
-
-    // USE PIGPIO Serial interface
-    
-    hSerial = serOpen("/dev/ttyAMA0", 19200, 0);
-    printf("Turned on Serial Port, %d \n",hSerial);
-//    serWrite(hSerial,(char *) msgGreetings,strlen(msgGreetings));
-printf("Serial Writting sttarred...\n");
-
-    while(TRUE) {
-//         OUTLINE:
-//
-//         1. If there's data in the queue:
-//              a. Read data and append to Rbuffer, being careful to
-//                  avoid overflow.
-//              b. If the buffer contains a full command (ends with '\n')
-//                  i. put the command in NewCommand
-//                  ii. leave any overflow past the '\n' in RBuffer
-//                  iii. set fNewCommand = TRUE;
-//              c. Elseif Buffer Overflowing
-//                  i. echo buffer to stdio as warning
-//                  ii. clear buffer
-//
-//         2. If(fNewCommand)
-//              a. Parse NewCommand
-//              b. fNewCommand = FALSE
-//
-//         3. If(fHeartbeatReady) Send 1Hz heartbeat over serial
-//
-//
-//         IMPLEMENTATION
-//
-//         1. If there's data in the queue:
-//              a. Read data and append to Rbuffer, being careful to
-//                  avoid overflow.
-//              b. If the buffer contains a full command (ends with '\n')
-//                  i. put the command in NewCommand
-//                  ii. leave any overflow past the '\n' in RBuffer
-//                  iii. set fNewCommand = TRUE;
-//              c. Elseif Buffer Overflowing
-//                  i. echo buffer to stdio as warning
-//                  ii. clear buffer
-
-
-/*
-        if((n=serDataAvailable(hSerial))) {
-printf("Serial  Data Coming In...\n");
-            nn = (n<(64-strlen(Rbuffer)) ? n : (64-strlen(Rbuffer)) );
-            if(nn!=n) serWrite(hSerial,(char *) msgErrorStringBufferOverflow,strlen(msgErrorStringBufferOverflow));
-            m  =  serRead(hSerial,NextSnip,nn);
-            if(m!=nn) serWrite(hSerial,(char *) msgErrorStringBuffer,strlen(msgErrorStringBuffer));
-printf("Read Snip: %s \n",NextSnip);
-            strcat(Rbuffer,NextSnip);
-printf("New Rbuffer: %s \n",Rbuffer);
-
-
-            if((pNextBuff=strchr(Rbuffer, '\n'))) {
-printf("NewCommand Detected....\n");
-                fNewCommand=TRUE;
-                strcpy(NewCommand,Rbuffer);
-printf("Raw NewCommand: %s \n",NewCommand);
-                token=strtok(NewCommand,"\n");
-printf("strtok NewCommand: %s \n",NewCommand);
-		strcpy(NextSnip,pNextBuff+1);
-                strcpy(Rbuffer,NextSnip);
-printf("Remaining Rbuffer: %s \n",Rbuffer);
-            }
-            else if(nn!=n) strcpy(Rbuffer,""); // Reser Rbuffer after overflow
-        }
-*/
-
-
-        if((n=serDataAvailable(hSerial))) {
-            m  =  serRead(hSerial,Rbuffer,n);
-            if(m!=n) serWrite(hSerial,(char *) msgErrorStringBuffer,strlen(msgErrorStringBuffer));
-            if((token=strtok(Rbuffer,"\n"))) {
-                strcpy(NewCommand,token);
-                fNewCommand = TRUE;
-            }
-        }
-
-        // 2. If(NewCommand)
-        if(fNewCommand) {
-            //      b. fNewCommand = FALSE
-            fNewCommand=FALSE;
-            //      a. Parse NewCommand
-            token = strtok(NewCommand, WS);
-            if(strcmp(token,RadToken)==0) {
-                token = strtok(NULL,WS);
-                // ON
-                if(strcmp(token,OnToken)==0) {
-                    n = sscanf(NewCommand,"RAD ON %u:%u:%u %u:%u:%u \r",
-                               &tmNew.tm_year,
-                               &tmNew.tm_mon,
-                               &tmNew.tm_mday,
-                               &tmNew.tm_hour,
-                               &tmNew.tm_min,
-                               &tmNew.tm_sec);
-                    if(n==6) {  // Set Time and Start Logging Data
-                        tmNew.tm_isdst = 0; // ignore DST, we're all using UTC
-                        NewTime.tv_sec  = mktime(&tmNew);
-                        NewTime.tv_nsec = 0;
-                        clock_settime(CLOCK_REALTIME,&NewTime);
-                        sprintf(Wbuffer,"RAD ON %u:%u:%u %u:%u:%u \r\n",tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday, tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec);
-                        fLogData=TRUE;
-                        serWrite(hSerial, (char *)Wbuffer,strlen(Wbuffer));
-                    }
-                    else {serWrite(hSerial,(char *)msgErrorOn,strlen(msgErrorOn));}
-                }
-                // OFF
-                else if(strcmp(token,OffToken)==0) {
-                    fLogData=FALSE;
-                    serWrite(hSerial, (char *)msgOff,strlen(msgOff));
-                }
-                // WIFI
-                else if(strcmp(token,WiFiToken)==0) {
-                    token = strtok(NULL,WS);
-                    // WIFI ON
-                    if(strcmp(token,OnToken)==0) {
-                        system(cmdWiFiOn);
-                        serWrite(hSerial, (char *)msgWiFiOn,strlen(msgWiFiOn));
-                    }
-                    // WIFI  OFF
-                    else if(strcmp(token,OffToken)==0) {
-                        system(cmdWiFiOff);
-                        serWrite(hSerial, (char *)msgWiFiOff,strlen(msgWiFiOff));
-                    }
-                }
-                // POWERDOWN
-                else if(strcmp(token,PowerToken)==0) {
-                    fLogData=FALSE;
-                    fCloseFiles=TRUE;
-                    serWrite(hSerial, (char *)msgPoweringDown,strlen(msgPoweringDown));
-                    // Do  Stuff as needed
-                    sleep(5);
-                    // Make sure  you're ready TO  DIE!!!
-                    while(fLogTerminated || !fCountTerminated){}
-                    serWrite(hSerial, (char *)msgPoweredDown,strlen(msgPoweredDown));
-                    
-                }
-                // HELP
-                else if(strcmp(token,HelpToken)==0) {serWrite(hSerial, (char *)msgHelp,strlen(msgHelp));}
-                // STATUS
-                else if(strcmp(token,StatusToken)==0) {serWrite(hSerial, (char *)msgStatus,strlen(msgStatus));}
-                // LOVE
-                else if(strcmp(token,LoveToken)==0) {serWrite(hSerial, (char *)msgLove,strlen(msgLove));};
-            } // if(strcmp(token,RadToken)==0)
-            else {serWrite(hSerial, (char *)msgNotRad,strlen(msgNotRad));};
-        }
-        
-        // 3. If(fHeartbeatReady) Send 1Hz heartbeat over serial
-        if(fHeartbeatReady) {
-            clock_gettime(CLOCK_REALTIME,&NewTime);
-            fHeartbeatReady = FALSE;
-            sprintf(Wbuffer,"RAD %u:%u:%u %u:%u:%u %u %u %u %u \r\n",
-                    tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday,
-                    tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec,
-                    LastSecPhotonCount,Tilt.heading,Tilt.pitch,Tilt.roll);
-            fLogData=TRUE;
-            serWrite(hSerial,Wbuffer,strlen(Wbuffer));
-        }
-
-        
-        
-        
-    } // while()
-
-    serClose(hSerial);
-
-}
-
-
 
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -654,7 +407,7 @@ void   OpenFiles(void)  {
     timeinfo = gmtime(&rawtime);
     
     strftime(sHeaderTime,24,"%F %T",timeinfo); // "YYYY-MM-DD HH:MM:SS"
-    strftime(sFileNameTime,24,"%Y_%m_%d_%H_%M_%S",timeinfo); // "YYYY_MM_DD__HH_MM_SS"
+    strftime(sFileNameTime,24,"%Y_%m_%d__%H_%M_%S",timeinfo); // "YYYY_MM_DD__HH_MM_SS"
     
     strcpy(sFileNameTxt,sFileRoot);
     strcat(sFileNameTxt,sFileNameTime);
@@ -687,7 +440,7 @@ void   CloseFiles(uint16_t BlocksWritten)  {
     time(&rawtime);
     timeinfo = gmtime(&rawtime);
     
-    strftime(sbuffer,24,"%F  %T",timeinfo); // "YYYY-MM-DD HH:MM:SS"
+    strftime(sbuffer,24,"%F %T",timeinfo); // "YYYY-MM-DD HH:MM:SS"
     fprintf(pMetaFile,"File Closed %s after %u 4KiB Blocks Written. \r\n",sbuffer,BlocksWritten);
     
     fflush(pMetaFile);
@@ -752,37 +505,6 @@ void UpdateTilt(void) {
     Tilt.pitch=tmp.pitch;
     Tilt.roll=tmp.roll;
 }
-
-int OpenSerialPort(void) {
-#ifdef  C_SERIAL
-    struct termios options;
-    int sfd = open("/dev/serial0", O_RDWR | O_NOCTTY);
-    printf("Turned on Serial Port, %d",sfd);
-    if (sfd == -1) {
-        printf("Error no is : %d\n", errno);
-        printf("Error description is : %s\n", strerror(errno));
-        return (-1);
-    };
-    
-    tcgetattr(sfd, &options);    // Set serial port to 19200 8N1
-    cfsetspeed(&options, B19200);
-    cfmakeraw(&options);
-    options.c_cflag &= ~CSTOPB;
-    options.c_cflag |= CLOCAL;
-    options.c_cflag |= CREAD;
-    options.c_cc[VTIME]=1; //  0.1s  timeout  on  read
-    options.c_cc[VMIN]=48; //  min  buffer  to  tinmeout = 48 bytes,  which is much longer  than any  signal  we're likely to  see
-    
-    tcsetattr(sfd, TCSANOW, &options);
-    
-    return sfd;
-#elif PIGPIO_SERIAL
-    int sfd = serOpen("/dev/serial0", B19200, 0);
-    printf("Turned on Serial Port, %d",sfd);
-#endif
-    return sfd;
-}; // OpenSerialPort
-
 
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -882,41 +604,6 @@ void TiltReadTemp(tTilt *t) {
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  */
 
-// Some power & CPU saving measures...
-/* NOTE: Some things  to  place in the system config.txt file to  save power and turn off LEDs:
- 
- // For /boot/config.txt
- # Disable Bluetooth  -- THIS WORKS!!!
- dtoverlay=pi3-disable-bt
- # Disable the PWR LED  -- THIS WORKS!!!
- dtparam=pwr_led_trigger=none
- dtparam=pwr_led_activelow=off
- # Disable the Activity LED  -- THIS WORKS!!!
- dtparam=act_led_trigger=none
- dtparam=act_led_activelow=off
- 
- */
-void SetSystemLowPower(void) {
-    // Kill HDMI, 20mA
-    system("sudo tvservice --off");
-    // Kill USB, 200mA (also kills Ethernet)
-    //     system("echo 0 | sudo tee /sys/devices/platform/soc/3f980000.usb/buspower >/dev/null");
-    // Kill Ethernet
-    system("sudo ifconfig eth0 down");
-    // Kill WiFi, 50mA
-    system("sudo ifconfig wlan0 down");
-    // Kill  Bluetooth 40mA
-    system("sudo systemctl disable bluetooth");
-    system("sudo service bluetooth stop");
-    // Kill the LEDs (Photons!!!)
-    system("sudo sh -c 'echo none > /sys/class/leds/led0/trigger'");
-    system("sudo sh -c 'echo none > /sys/class/leds/led1/trigger'");
-    system("sudo sh -c 'echo 0 > /sys/class/leds/led1/brightness'");
-    system("sudo sh -c 'echo 0 > /sys/class/leds/led0/brightness'");
-    // Kill xinetd, the inet server daemon
-    //    system("sudo apt-get purge xinetd");
-    //    system("sudo apt-get autoremove");
-}
 
 void Sleep_ns(int nS) { // cross-platform sleep function
     struct timespec SleepyTime;
@@ -948,34 +635,6 @@ void Sleep_ns(int nS) { // cross-platform sleep function
  #pragma omp atomic // next line, an assignment,  is atomic!
  */
 
-
-/*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
- %                                                                             %
- %                             Old Wiring Masks                                %
- %                                                                             %
- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
- const uint16_t Lpins = {4, 17, 27, 22, 10, 9, 11, 5, 6, 13, 19, 26};
-
- static uint32_t Mask[12];
- for(int i=0;i<12;i++)  Mask[i] = ( 1 << Lpins[i] );
-
- ObsPhotonCount =    (((RawData&Mask[0])!=0)<<0)|
- (((RawData&Mask[1])!=0)<<1)|
- (((RawData&Mask[2])!=0)<<2)|
- (((RawData&Mask[3])!=0)<<3)|
- (((RawData&Mask[4])!=0)<<4)|
- (((RawData&Mask[5])!=0)<<5)|
- (((RawData&Mask[6])!=0)<<6)|
- (((RawData&Mask[7])!=0)<<7)|
- (((RawData&Mask[8])!=0)<<8)|
- (((RawData&Mask[9])!=0)<<9)|
- (((RawData&Mask[10])!=0)<<10)|
- (((RawData&Mask[11])!=0)<<11); // 48  Operations --  yuck!!! @ 1.4GHz that's 48 * .7ns ~ 34ns.  Yuck!
-
-
- */
 
 
 
