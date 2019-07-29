@@ -45,7 +45,7 @@
  bioluminescence flashes can have sub-ms structure, so we'd like to sample at
  10kHz or faster.  Running at our max possible source data rate of 67MHz (15ns),
  a 10kHz counter would face up to 6.7k samples, so we  need a bit depth of at
- least 12.7. We skin that cat by using a fast (95MHz) 5V 12-bit asynchronous
+ least 12.7. We skin that cat by using a fast (95MHz) 12-bit asynchronous
  counter, the TI SN74LV4040, and sampling the counter at a slightly higher
  frequency than 10kHz. This counter has two inputs:
     CLK     falling edges to CLK increment the 12-bit output by 1 with a
@@ -56,7 +56,7 @@
  hit rate, while 16kHz gives us about 67MHz, our maximum theoretically possible
  result (and thus a small buffer).
  
- (NOTE: You might be tempted to use a 16-bit counter.  The trouble is that all
+ (NOTE: It might be nice to use a 16-bit counter.  The trouble is that all
  available 16-bit counters output over 8-bit buses, and thus require read-out
  interfaces that are twice as fast, significantly complicating the rest of the
  electronics stack. The SN74LV4040 series is a beautiful family of counters
@@ -65,28 +65,29 @@
  To avoid latency while reading the counter (odds are it will take longer
  than 15ns to read the data in!), we then feed the counter's 12-bit output
  into a (5V-tolerant) 3.3V 16-bit Transparent D-type Latch (TI SN74LVTH162373).
- This has the  additional advantage of providing a (5V-tolerant) 3.3V interface
+ This has the additional advantage of providing a (5V-tolerant) 3.3V interface
  to our Pi, which is good because 5V would fry it. This latch has four inputs:
- !OE1,!OE2   When !OE is HIGH, outputs go silent (high impedance).
- When !OE is LOW, outputs are active.
- LE1, LE2    When LE is HIGH, outputs follow inputs.
- When LE is LOW, outputs hold.
- 
+
+     !OE1,!OE2   When !OE is HIGH, outputs go silent (high impedance).
+                 When !OE is LOW, outputs are active.
+     LE1, LE2    When LE is HIGH, outputs follow inputs.
+                 When LE is LOW, outputs hold.
+
  The counting ptocess  is thus:
- HARDWIRE !OE1=!OE2=0 // Latch Output always enabled
- HARDWIRE LE=LE1=LE2  // Treat two 8-bit latches as  a single 16-bit latch
- HARDWIRE HOUT to CLK // Hamamatsu  signal feeds the clock on the counter
- HARDWIRE COUT to LIN // Counter output  feeds the  transparent  latch
- ...
- SET CLR HIGH         // Clear the  counter
- SET CLR LOW          // Start  the  counter
- while(wait(83us)) {
- SET LE LOW       // Hold  the Latch
- SET CLR HIGH     // Clear the counter
- SET CLR LOW      // Reset the counter
- READ LOUT to CACHE  // Someone Else's Problem Now
- SET LE HIGH      // Free the Latch
- }
+
+     HARDWIRE !OE1=!OE2=0 // Latch Output always enabled
+     HARDWIRE LE=LE1=LE2  // Treat two 8-bit latches as  a single 16-bit latch
+     HARDWIRE HOUT to CLK // Hamamatsu  signal feeds the clock on the counter
+     HARDWIRE COUT to LIN // Counter output  feeds the  transparent  latch
+     ...
+     SET CLR HIGH         // Clear the  counter
+     SET CLR LOW          // Start  the  counter
+     while(wait(83us)) {
+     SET LE LOW       // Hold  the Latch
+     SET CLR HIGH     // Clear the counter
+     SET CLR LOW      // Reset the counter
+     READ LOUT to CACHE  // Someone Else's Problem Now
+     SET LE HIGH      // Free the Latch
  
  On top of the counting photons, we need to keep track of which way the system
  is pointing.  To that end we have a precision Tilt sensor, the Honeywell
@@ -264,31 +265,11 @@ void  Count_Photons() {
     uint16_t DataHeader[16];
     uint16_t iBlock=0;
     uint32_t Mask[2];
-    uint32_t rd1,rd2;
     
     Mask[0] = ((1 << 10) -1) << Lpins[0];
     Mask[1] = ((1 <<  2) -1) << Lpins[10];
 
 
-/*
-uint32_t m1,m2,m1_4,m2_6,mc,mc_d;
-
-m1_4 = Mask[0]>>4;
-m2_6 = Mask[1]>>6;
-mc = m1_4 | m2_6;
-mc_d = mc & (3655+8*4096);
-
-//YUCK
-printf(FOURBYTE_TO_BINARY_PATTERN" \r\n",FOURBYTE_TO_BINARY(Mask[0]));
-printf(FOURBYTE_TO_BINARY_PATTERN" \r\n",FOURBYTE_TO_BINARY(Mask[1]));
-printf(FOURBYTE_TO_BINARY_PATTERN" \r\n",FOURBYTE_TO_BINARY(m1_4));
-printf(FOURBYTE_TO_BINARY_PATTERN" \r\n",FOURBYTE_TO_BINARY(m2_6));
-printf(FOURBYTE_TO_BINARY_PATTERN" \r\n",FOURBYTE_TO_BINARY(mc));
-printf(FOURBYTE_TO_BINARY_PATTERN" \r\n",FOURBYTE_TO_BINARY(mc_d));
-//YUCK 
-
-return;
-*/
 
     
     // NOTE: Include one termination '\0' so that  it's  clearly  readable as an ascii  string
@@ -340,35 +321,19 @@ return;
             gpioWrite(PIN_COUNTCLEAR,   1);  // Reset Counter. Need to hold pin high at least 5us, ~200MHz
             gpioWrite(PIN_COUNTCLEAR,   0);  // Happily (sic) the Pi can only toggle a pin at < 87MHz.  We good.
             clock_gettime(CLOCK_REALTIME, &t);
-            RawData = 0;
-//YUCK
-//printf("%u \r\n",RawData);
-//YUCK 
             RawData = gpioRead_Bits_0_31();  // Pull the data & reorder bits as needed
-//YUCK
-//printf("%u \r\n",RawData);
-//YUCK 
             gpioWrite(PIN_LATCHEN,      1);  // Release the Latch!
             // Now reorder the relevant bits into a photon count in 5 operations...
-//YUCK
-//printf("%u \r\n",ObsPhotonCount);
-//YUCK 
-
             ObsPhotonCount =    ( (RawData & Mask[0]) >> 4 ) | //4
                                 ( (RawData & Mask[1]) >> 6 ) ; //6
 //YUCK
 //printf("%u \r\n",ObsPhotonCount);
-//return;
 //YUCK 
-            RawData = 0;
             // End Critical Code
             // Release the Kracken!!!
             ////////////////////////////////////////////////////////////
             ////////////////////////////////////////////////////////////
 
-//YUCK
-//printf("%u \r\n",ObsPhotonCount);
-//YUCK 
 
            timespecsub(t,to,Dt); // Dt = t-to;
             ObsTime  =  (Dt.tv_nsec/1000) & ((1 << 16)-1); // extract the 16 LSB of the number of usec since last eval
@@ -381,6 +346,7 @@ return;
 
             timespecadd(tn,dt,tn); // tn = tn+dt, increement sample clock
         }  // for(i=0; i<Nw; i++,tn_ns+=dt)
+
 
         // Buffer Filled, time to swap buffer!
         //
@@ -399,12 +365,12 @@ return;
         CurrentBlockPhotonCount = 0;
 
         // If we've written 12 blocks, restart per-second photon count
-        if(++iBlock==12) {
+        if(++iBlock==DATA_BLOCKS_PER_SEC) {
             iBlock=0;
             LastSecPhotonCount=CurrentSecPhotonCount; 
             CurrentSecPhotonCount=0; 
             fHeartbeatReady=TRUE;
-        };  // if(++iBlock==12)
+        };  // if(++iBlock==DATA_BLOCKS_PER_SEC)
 
     } // while(TRUE)
     
@@ -653,8 +619,10 @@ void Stdio_Comms()  {
         // 3. If(fHeartbeatReady) Send 1Hz heartbeat over serial
         if(fHeartbeatReady) {
             fHeartbeatReady = FALSE;
-            printf("RAD LastSecCount: %u  Tilt: %u %u %u \r\n",
-                    LastSecPhotonCount,Tilt.heading,Tilt.pitch,Tilt.roll);
+//            printf("RAD LastSecCount: %u  Tilt: %u %u %u \r\n",
+//                    LastSecPhotonCount,Tilt.heading,Tilt.pitch,Tilt.roll);
+            printf("RAD: Counted %u Photons \r\n",
+                    LastSecPhotonCount);
         }
 
 
@@ -663,10 +631,6 @@ void Stdio_Comms()  {
           printf("KBhit detected, shutting down... \r\n");
          };
 //       sleep(1);
-
-
-
-
 
 
     } // while(!fShutDown)
@@ -712,16 +676,16 @@ void   OpenFiles(void)  {
     pMetaFile =  fopen(sFileNameTxt,"a");
     
     fprintf(pMetaFile,"Future Ocean Lab Radiometer Data File \r\n");
-    fprintf(pMetaFile,"Software Version: %f",FOL_RAD_VV);
-    fprintf(pMetaFile," .....\r\n");
-    fprintf(pMetaFile,"Data Rate: %u  \r\n",SAMPLES_PER_SEC);
+    fprintf(pMetaFile,"Software Version: %f \r\n",FOL_RAD_VV);
+    fprintf(pMetaFile," \r\n");
+    fprintf(pMetaFile,"Sampling Rate: %u Hz \r\n",SAMPLES_PER_SEC);
     fprintf(pMetaFile,"Data Block Size: %u Bytes  \r\n",DATA_BLOCK_SIZE);
     fprintf(pMetaFile,"Data Format: Nanoseconds [2B] Photon  Count [2B]   \r\n");
-    fprintf(pMetaFile,"Data Header Size: 32B  \r\n");
-    fprintf(pMetaFile,"Data Header Format: \"@@...(18 times)...@@\" EpochTime[4B] NanoSeconds[4B] Tilt[6B] \r\n");
-    fprintf(pMetaFile," .....\r\n");
+    fprintf(pMetaFile,"Data Block Header Size: 32B  \r\n");
+    fprintf(pMetaFile,"Data Block Header Format: \"@@...(18 times)...@@\" EpochTime[4B] NanoSeconds[4B] Tilt[6B] \r\n");
+    fprintf(pMetaFile," \r\n");
     fprintf(pMetaFile,"%s, %s \r\n",CRUISE_NAME,SHIP_NAME);
-    fprintf(pMetaFile,"File Created %s \r\n",sHeaderTime);
+    fprintf(pMetaFile,"File Created at %s \r\n",sHeaderTime);
     
 }
 
@@ -734,7 +698,7 @@ void   CloseFiles(uint16_t BlocksWritten)  {
     timeinfo = gmtime(&rawtime);
     
     strftime(sbuffer,24,"%F  %T",timeinfo); // "YYYY-MM-DD HH:MM:SS"
-    fprintf(pMetaFile,"File Closed %s after %u 4KiB Blocks Written. \r\n",sbuffer,BlocksWritten);
+    fprintf(pMetaFile,"File Closed at %s after %u Blocks Written. \r\n",sbuffer,BlocksWritten);
     
     fflush(pMetaFile);
     fflush(pDataFile);
