@@ -196,6 +196,8 @@
 //#define RAD_NAME "Statler"
 #define RAD_NAME "Waldorf"
 
+#define SHOUT printf
+
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  %                                                                             %
@@ -206,32 +208,33 @@
 int main() {
     int BlocksWritten=0;
 
-    printf("Hello %s! \r\n",SHIP_NAME);
-
     InitGPIO();
-    
+    OpenSerial();
     OpenFiles();
+
+    SHOUT("RAD <<%s>>: Hello %s! \r\n",RAD_NAME,SHIP_NAME);
 
     pNewData = B1;
     pOldData = B2;
 
-        // TODO: Wait until ON signal has been received
 //    #pragma omp places(cores) proc_bind(spread)
     #pragma omp parallel num_threads(3)
     {
         #pragma omp single nowait
         {
-            printf("RAD %s Counting Photons \r\n",RAD_NAME);
+            SHOUT("RAD <<%s>>: Photon Counting Commenced \r\n",RAD_NAME);
             Count_Photons();
         }
         #pragma omp single nowait
         {
-            printf("RAD %s Logging Data \r\n",RAD_NAME);
+            Sleep_ms(1);
+            SHOUT("RAD <<%s>>: Data Logging Commenced\r\n",RAD_NAME);
             BlocksWritten = Log_Data();
         }
 	#pragma omp single
 	{
-            printf("RAD Serial_Comms \r\n");
+            Sleep_ms(2);
+//            printf("RAD Serial_Comms \r\n");
 //            Serial_Comms();
             Stdio_Comms();
 	}
@@ -243,7 +246,7 @@ int main() {
 //    sleep(5);
     CloseGPIO();
 
-    printf("Goodbye %s! \r\n",SHIP_NAME);
+    SHOUT("RAD <<%s>>: Goodbye %s! \r\n",RAD_NAME,SHIP_NAME);
     return 0;
 
 }
@@ -305,7 +308,7 @@ void  Count_Photons() {
         DataHeader[15]=Tilt.roll;
 
         // Write DataHeader to Buffer
-        memcpy(pNewData,DataHeader,32);
+        memcpy((void *) pNewData,DataHeader,32);
 
         for(int i=0; i<Nw; i++) {
              
@@ -391,7 +394,7 @@ int Log_Data() {
         while((fBufferFull==FALSE) && (fShutDown==FALSE)) {Sleep_ms(1);};
         
         // Write pOldData to SD card
-        fwrite(pOldData, 1, DATA_BLOCK_SIZE, pDataFile);
+        fwrite((void *) pOldData, 1, DATA_BLOCK_SIZE, pDataFile);
 //        fflush(pDataFile);  <---- No need, we will flush upon eit  and otherwise let OS handle buffer
         fBufferFull = FALSE;
         BlocksWritten++;
@@ -654,7 +657,7 @@ void Stdio_Comms()  {
  %                                                                             %
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  */
-void   OpenFiles(void)  {
+int    OpenFiles(void)  {
     char sFileNameTime[24],sHeaderTime[24],sFileNameTxt[48],sFileNameBin[48];
     const char sFileRoot[]="FOL_RAD_";
     time_t rawtime;
@@ -687,6 +690,7 @@ void   OpenFiles(void)  {
     fprintf(pMetaFile,"%s, %s \r\n",CRUISE_NAME,SHIP_NAME);
     fprintf(pMetaFile,"File Created at %s \r\n",sHeaderTime);
     
+    return 0;
 }
 
 void   CloseFiles(uint16_t BlocksWritten)  {
@@ -763,7 +767,7 @@ void UpdateTilt(void) {
     Tilt.roll=tmp.roll;
 }
 
-int OpenSerialPort(void) {
+int OpenSerial(void) {
 #ifdef  C_SERIAL
     struct termios options;
     int sfd = open("/dev/serial0", O_RDWR | O_NOCTTY);
@@ -794,6 +798,10 @@ int OpenSerialPort(void) {
 }; // OpenSerialPort
 
 
+
+void   CloseSerial(uint16_t BlocksWritten) {
+    // Do  Stuff...
+}
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  %                                                                             %
@@ -957,35 +965,3 @@ void Sleep_ns(int nS) { // cross-platform sleep function
  #pragma omp flush // Essential for making sure flags are seen  across threads!!!
  #pragma omp atomic // next line, an assignment,  is atomic!
  */
-
-
-/*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
- %                                                                             %
- %                             Old Wiring Masks                                %
- %                                                                             %
- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
- const uint16_t Lpins = {4, 17, 27, 22, 10, 9, 11, 5, 6, 13, 19, 26};
-
- static uint32_t Mask[12];
- for(int i=0;i<12;i++)  Mask[i] = ( 1 << Lpins[i] );
-
- ObsPhotonCount =    (((RawData&Mask[0])!=0)<<0)|
- (((RawData&Mask[1])!=0)<<1)|
- (((RawData&Mask[2])!=0)<<2)|
- (((RawData&Mask[3])!=0)<<3)|
- (((RawData&Mask[4])!=0)<<4)|
- (((RawData&Mask[5])!=0)<<5)|
- (((RawData&Mask[6])!=0)<<6)|
- (((RawData&Mask[7])!=0)<<7)|
- (((RawData&Mask[8])!=0)<<8)|
- (((RawData&Mask[9])!=0)<<9)|
- (((RawData&Mask[10])!=0)<<10)|
- (((RawData&Mask[11])!=0)<<11); // 48  Operations --  yuck!!! @ 1.4GHz that's 48 * .7ns ~ 34ns.  Yuck!
-
-
- */
-
-
-

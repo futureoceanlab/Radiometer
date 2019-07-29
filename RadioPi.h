@@ -144,20 +144,23 @@ typedef struct {
  */
 
 // High-level Tasks
-void Count_Photons();
-int  Log_Data();
-void Serial_Comms();
-void Stdio_Comms();
+void Count_Photons(void);
+int  Log_Data(void);
+void Serial_Comms(void);
+void Stdio_Comms(void);
+void UpdateTilt(void);
 
 // File IO
-void OpenFiles();
+int  OpenFiles(void);
 void CloseFiles(uint16_t BlocksWritten);
+
+// User IO
+int  OpenSerial(void);
+void CloseSerial(uint16_t BlocksWritten);
 
 // GPIO ACCESS
 int  InitGPIO(void);
 void CloseGPIO(void);
-void UpdateTilt(void);
-int  OpenSerialPort(void);
 
 // TILT Helper  Functions
 void TiltReadReg(uint8_t register,int *,int *,int *);
@@ -168,7 +171,6 @@ void TiltReadTemp(tTilt *t);
 
 
 // Helper Routines
-void SetSystemLowPower(void);
 void Sleep_ns(int);
 #define Sleep_us(A)  Sleep_ns(1000*A)
 #define Sleep_ms(A)  Sleep_ns(1000000*A)
