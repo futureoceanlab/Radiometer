@@ -192,6 +192,8 @@
 
 #define CRUISE_NAME "DeepSee OTZ Cruise, July 2019"
 #define SHIP_NAME  "NOAA Henry B. Bigelow"
+//#define RAD_NAME "Statler"
+#define RAD_NAME "Waldorf"
 
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -201,36 +203,51 @@
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  */
 int main() {
+    int BlocksWritten=0;
 
-    // SetSystemLowPower();
-
-printf("Hello Bigelo!\r\n");
+    printf("Hello %s! \r\n",SHIP_NAME);
 
     InitGPIO();
+    
+    OpenFiles();
 
-	// TODO: Wait until ON signal has been received
+    pNewData = B1;
+    pOldData = B2;
+
+        // TODO: Wait until ON signal has been received
 //    #pragma omp places(cores) proc_bind(spread)
-//    #pragma omp parallel num_threads(3)
+    #pragma omp parallel num_threads(3)
     {
-//        #pragma omp single nowait
+        #pragma omp single nowait
         {
-printf("RAD Log_Data \r\n");
-//            Log_Data();
-	}
-//	#pragma omp single nowait
+            printf("RAD %s Counting Photons \r\n",RAD_NAME);
+            Count_Photons();
+        }
+        #pragma omp single nowait
+        {
+            printf("RAD %s Logging Data \r\n",RAD_NAME);
+            BlocksWritten = Log_Data();
+        }
+	#pragma omp single
 	{
-printf("RAD Count_Photons \r\n");
-//          Count_Photons();
+            printf("RAD Serial_Comms \r\n");
+//            Serial_Comms();
+            Stdio_Comms();
 	}
-//	#pragma omp single
-	{
-//printf("RAD Serial_Comms \r\n");
-          Serial_Comms();
-	}
+
     }
-    printf("0:finished\n");
+
+    // Prepare to Power Down...
+    CloseFiles(BlocksWritten);
+//    sleep(5);
+    CloseGPIO();
+
+    printf("Goodbye %s! \r\n",SHIP_NAME);
     return 0;
+
 }
+
+
 
 
 
@@ -241,109 +258,155 @@ printf("RAD Count_Photons \r\n");
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  */
 void  Count_Photons() {
-    struct timespec t, to, dt, tn;
-    uint32_t RawData=0;
+    struct timespec t, to, dt, Dt, tn;
+    uint32_t RawData=0, CurrentBlockPhotonCount=0, CurrentSecPhotonCount=0;
     uint16_t ObsPhotonCount=0, ObsTime=0;
     uint16_t DataHeader[16];
     uint16_t iBlock=0;
-    uint32_t BlockPhotonCount=0;
-    uint32_t SecPhotonCount=0;
-    int fClocksInitialized=FALSE;
-    static uint32_t Mask[2];
+    uint32_t Mask[2];
+    uint32_t rd1,rd2;
     
-    Mask[1] = ((1 << 10) -1) << Lpins[0];
-    Mask[2] = ((1 <<  2) -1) << Lpins[10];
+    Mask[0] = ((1 << 10) -1) << Lpins[0];
+    Mask[1] = ((1 <<  2) -1) << Lpins[10];
+
+
+/*
+uint32_t m1,m2,m1_4,m2_6,mc,mc_d;
+
+m1_4 = Mask[0]>>4;
+m2_6 = Mask[1]>>6;
+mc = m1_4 | m2_6;
+mc_d = mc & (3655+8*4096);
+
+//YUCK
+printf(FOURBYTE_TO_BINARY_PATTERN" \r\n",FOURBYTE_TO_BINARY(Mask[0]));
+printf(FOURBYTE_TO_BINARY_PATTERN" \r\n",FOURBYTE_TO_BINARY(Mask[1]));
+printf(FOURBYTE_TO_BINARY_PATTERN" \r\n",FOURBYTE_TO_BINARY(m1_4));
+printf(FOURBYTE_TO_BINARY_PATTERN" \r\n",FOURBYTE_TO_BINARY(m2_6));
+printf(FOURBYTE_TO_BINARY_PATTERN" \r\n",FOURBYTE_TO_BINARY(mc));
+printf(FOURBYTE_TO_BINARY_PATTERN" \r\n",FOURBYTE_TO_BINARY(mc_d));
+//YUCK 
+
+return;
+*/
+
     
-    strncpy((char *)DataHeader,"@@@@@@@@@@@@@@@@@",18); // NOTE: Include one termination '\0' so that  it's  clearly  readable as an ascii  string
+    // NOTE: Include one termination '\0' so that  it's  clearly  readable as an ascii  string
+    strncpy((char *)DataHeader,"@@@@@@@@@@@@@@@@@",18); 
 
     dt.tv_sec = 0;
     dt.tv_nsec = ONE_BILLION / SAMPLES_PER_SEC; // Nanoseconds per sample
     
-    while(TRUE){ // eternal loop
 
-        while(fCaptureData){ // Capture a new Buffer and Swap when ready
 
-            if(!fClocksInitialized)  { // First data sample, initialise clocks etc
-                /*    Reset the counter and toggle the latch:    */
-                gpioWrite(PIN_LATCHEN,      0);  // Pull the latch down to hold data
-                gpioWrite(PIN_COUNTCLEAR,   1);  // Reset Counter. Need to hold pin high at least 5us, ~200MHz
-                gpioWrite(PIN_COUNTCLEAR,   0);  // Happily (sic) the Pi can only toggle a pin at < 87MHz.
-                clock_gettime(CLOCK_REALTIME, &t); // Record time Count began anew;
-                gpioWrite(PIN_LATCHEN,      1);  // Release the Latch
-                
-                timespecadd(t,dt,tn); // tn = t + dt;
-                to=t;
-                fClocksInitialized=TRUE;
-            }
 
-            // Fill DataHeader = Array of 16 uint16_t with Time and  Tilt Data
-            memcpy(DataHeader+9,&to.tv_sec,4);
-            memcpy(DataHeader+11,&to.tv_nsec,4);
-            DataHeader[13]=Tilt.heading;
-            DataHeader[14]=Tilt.pitch;
-            DataHeader[15]=Tilt.roll;
-            
-            // Write DataHeader to Buffer
-            memcpy(pNewData,DataHeader,32);
-            
-            for(int i=0; i<Nw; i++) {
+    // Initialize Clocks and Counters
+    // First data sample, initialise clocks etc
+    //    Reset the counter and toggle the latch:
+    gpioWrite(PIN_LATCHEN,      0);  // Pull the latch down to hold data
+    gpioWrite(PIN_COUNTCLEAR,   1);  // Reset Counter. Need to hold pin high at least 5us, ~200MHz
+    gpioWrite(PIN_COUNTCLEAR,   0);  // Happily (sic) the Pi can only toggle a pin at < 87MHz.
+    clock_gettime(CLOCK_REALTIME, &t); // Record time Count began anew;
+    gpioWrite(PIN_LATCHEN,      1);  // Release the Latch
 
+    timespecadd(t,dt,tn); // tn = t + dt;
+    to=t;
+
+
+    // MAIN LOOP: CAPTURE PHOTON COUNTS
+    while(fShutDown==FALSE){ // eternal loop --  THIS IS WHERE WE INTERRUPT THE CYCLE TO SHUTDOWN
+
+        // Fill DataHeader = Array of 16 uint16_t with Time and  Tilt Data
+        memcpy(DataHeader+9,&to.tv_sec,4);
+        memcpy(DataHeader+11,&to.tv_nsec,4);
+        DataHeader[13]=Tilt.heading;
+        DataHeader[14]=Tilt.pitch;
+        DataHeader[15]=Tilt.roll;
+
+        // Write DataHeader to Buffer
+        memcpy(pNewData,DataHeader,32);
+
+        for(int i=0; i<Nw; i++) {
+             
                 // Spin until time for next data sample
-                do {
-                    clock_gettime(CLOCK_REALTIME, &t);
-                } while(timespeccmp(t,tn,<));
+            do { clock_gettime(CLOCK_REALTIME, &t); } while(timespeccmp(t,tn,<));
                 
-                ////////////////////////////////////////////////////////////
-                ////////////////////////////////////////////////////////////
-                // Begin  Critical Code
-                /*    Read data from the latch    */
-                gpioWrite(PIN_LATCHEN,      0);  // Pull the latch down to hold data
-                gpioWrite(PIN_COUNTCLEAR,   1);  // Reset Counter. Need to hold pin high at least 5us, ~200MHz
-                gpioWrite(PIN_COUNTCLEAR,   0);  // Happily (sic) the Pi can only toggle a pin at < 87MHz.  We good.
-                clock_gettime(CLOCK_REALTIME, &t);
-                RawData = gpioRead_Bits_0_31();  // Pull the data & reorder bits as needed
-                gpioWrite(PIN_LATCHEN,      1);  // Release the Latch!
-                // Now reorder the relevant bits into a photon count in 5 operations...
-                ObsPhotonCount =    ( (RawData & Mask[0]) >> 4 ) |
-                                    ( (RawData & Mask[1]) >> 6 ) ;
-                
-                // End Critical Code
-                // Release the Kracken!!!
-                ////////////////////////////////////////////////////////////
-                ////////////////////////////////////////////////////////////
 
-                timespecsub(t,to,to); // to = t-to;
-                ObsTime  =  (to.tv_nsec/1000) & ((1 << 16)-1); // extract the 16 LSB of the number of usec since last eval
-                to = t;
+            ////////////////////////////////////////////////////////////
+            ////////////////////////////////////////////////////////////
+            // Begin  Critical Code
+            /*    Read data from the latch    */
+            gpioWrite(PIN_LATCHEN,      0);  // Pull the latch down to hold data
+            gpioWrite(PIN_COUNTCLEAR,   1);  // Reset Counter. Need to hold pin high at least 5us, ~200MHz
+            gpioWrite(PIN_COUNTCLEAR,   0);  // Happily (sic) the Pi can only toggle a pin at < 87MHz.  We good.
+            clock_gettime(CLOCK_REALTIME, &t);
+            RawData = 0;
+//YUCK
+//printf("%u \r\n",RawData);
+//YUCK 
+            RawData = gpioRead_Bits_0_31();  // Pull the data & reorder bits as needed
+//YUCK
+//printf("%u \r\n",RawData);
+//YUCK 
+            gpioWrite(PIN_LATCHEN,      1);  // Release the Latch!
+            // Now reorder the relevant bits into a photon count in 5 operations...
+//YUCK
+//printf("%u \r\n",ObsPhotonCount);
+//YUCK 
 
-                //    [Write 2B (usec since last data) and 2B (Data) to buffer];
-                pNewData[2*i+16] = ObsTime;
-                pNewData[2*i+17] = ObsPhotonCount;
-                BlockPhotonCount += ObsPhotonCount;
-                
-                timespecadd(tn,dt,tn); // tn = tn+dt, increement sample clock
-            }  // for(i=0; i<Nw; i++,tn_ns+=dt)
-            // Buffer Filled, time to swap buffer...
-            
-            
-            while(fBufferFull){}; // Hang until OldData has been written and released by Storage thread
-            pTmpData = pNewData;
-            pNewData = pOldData;
-            pOldData = pTmpData;
-            fBufferFull  = TRUE; // set flag telling thread 2 a DataBlock is ready in the Buffer to store
-            
-            LastBlockPhotonCount = BlockPhotonCount;
-            BlockPhotonCount = 0;
-            SecPhotonCount += LastBlockPhotonCount;
-            if(iBlock==11) {iBlock=0;LastSecPhotonCount=SecPhotonCount;SecPhotonCount=0; fHeartbeatReady=TRUE;};
+            ObsPhotonCount =    ( (RawData & Mask[0]) >> 4 ) | //4
+                                ( (RawData & Mask[1]) >> 6 ) ; //6
+//YUCK
+//printf("%u \r\n",ObsPhotonCount);
+//return;
+//YUCK 
+            RawData = 0;
+            // End Critical Code
+            // Release the Kracken!!!
+            ////////////////////////////////////////////////////////////
+            ////////////////////////////////////////////////////////////
 
-        }  // while(fCaptureData)
+//YUCK
+//printf("%u \r\n",ObsPhotonCount);
+//YUCK 
 
-        Sleep_ms(1); // Sleep for 1 ms before checking again
+           timespecsub(t,to,Dt); // Dt = t-to;
+            ObsTime  =  (Dt.tv_nsec/1000) & ((1 << 16)-1); // extract the 16 LSB of the number of usec since last eval
+            to = t;
 
-        fClocksInitialized = FALSE;
+            //    [Write 2B (usec since last data) and 2B (Data) to buffer];
+            pNewData[2*i+16] = ObsTime;
+            pNewData[2*i+17] = ObsPhotonCount;
+            CurrentBlockPhotonCount += ObsPhotonCount;
 
-    } // while()
+            timespecadd(tn,dt,tn); // tn = tn+dt, increement sample clock
+        }  // for(i=0; i<Nw; i++,tn_ns+=dt)
+
+        // Buffer Filled, time to swap buffer!
+        //
+        // Spin until old buffer is available for swapping... 
+        while((fBufferFull==TRUE) && (fShutDown==FALSE)){printf("Buffer Filled, Counting Paused!!! \r\n");}; // Hang until OldData has been written and released by Storage thread
+        // OldBuffer has been cleared, we can now swap pointers safely...
+        pTmpData = pNewData;
+        pNewData = pOldData;
+        pOldData = pTmpData;
+        // set flag telling thread 2 a DataBlock is ready in the Buffer to store
+        fBufferFull  = TRUE; 
+
+        // Update Photon and Block Counts 
+        CurrentSecPhotonCount += CurrentBlockPhotonCount;
+        LastBlockPhotonCount = CurrentBlockPhotonCount;
+        CurrentBlockPhotonCount = 0;
+
+        // If we've written 12 blocks, restart per-second photon count
+        if(++iBlock==12) {
+            iBlock=0;
+            LastSecPhotonCount=CurrentSecPhotonCount; 
+            CurrentSecPhotonCount=0; 
+            fHeartbeatReady=TRUE;
+        };  // if(++iBlock==12)
+
+    } // while(TRUE)
     
 }
 
@@ -354,42 +417,25 @@ void  Count_Photons() {
  %                                                                             %
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  */
-void  Log_Data() {
-    // File Variables
-    uint8_t fFilesOpen=FALSE;
+int Log_Data() {
     uint32_t BlocksWritten=0;
 
-    while(TRUE){
-        while(fLogData)  {
-            
-            if(!fFilesOpen) {OpenFiles(); fFilesOpen=TRUE; BlocksWritten = 0;}
-            if(!fCaptureData) {fCaptureData=TRUE;};
-            
-            while(!fBufferFull) {Sleep_ms(1);};
-            
-                // Write pOldData to SD card
-            fwrite(pOldData, 1, DATA_BLOCK_SIZE, pDataFile);
-            fflush(pDataFile);
-            fBufferFull = FALSE;
-            BlocksWritten++;
-            
-            // Pull New Tilt Data from I2C
-            UpdateTilt();
-        }  //  while(fLogData)
+    while(fShutDown==FALSE) {
+        // Spin until Data Ready 
+        while((fBufferFull==FALSE) && (fShutDown==FALSE)) {Sleep_ms(1);};
         
-        fBufferFull  = FALSE;
-        fCaptureData = FALSE;
-        fBufferFull  = FALSE;
-        
-        if(fCloseFiles&&fFilesOpen) {
-            CloseFiles(BlocksWritten);
-            fCloseFiles=FALSE;
-            fFilesOpen=FALSE;
-        }; // if(fCloseFiles&&fFilesOpen)
-        
-        Sleep_ms(1); // Sleep for 1 ms before checking again
+        // Write pOldData to SD card
+        fwrite(pOldData, 1, DATA_BLOCK_SIZE, pDataFile);
+//        fflush(pDataFile);  <---- No need, we will flush upon eit  and otherwise let OS handle buffer
+        fBufferFull = FALSE;
+        BlocksWritten++;
 
-    } // while()
+        // Pull New Tilt Data from I2C
+        UpdateTilt();
+
+    }  //  while(fLogData)
+
+    return(BlocksWritten);
 }
 
 
@@ -401,28 +447,23 @@ void  Log_Data() {
  */
 /*  Serial Comms Interface Specification:
 
- 1. Serial Interface:
+ 0. Serial Interface:
  RS232 19200 8N1
  
- 2. Upon startup, system will output a greeting on the serial line:
+ 1. Upon startup, system will output a greeting on the serial line:
  ==> "Radiometer RAD.VV starting up... \r\n"
  VV               Version (2 ascii symbols)
  Followed shortly thereafter by a state data dump for the record:
  ==> "RAD Setup Data: [comma separated string] \r\n”
  
- 3. To begin data recording and set clock:
- <== “RAD ON yyyy:mm:dd hh:mm:ss.sss \r\n”
+ 2. To mark a timestamp in the Metadata (important for synchronizing data in post)
+ <== “RAD TIME yyyy:mm:dd hh:mm:ss.sss \r\n”
  Response:
- ==> “RAD ON yyyy:mm:dd hh:mm:ss.sss \r\n” followed by 1Hz data stream
+ ==> “RAD TIME yyyy:mm:dd hh:mm:ss.sss \r\n”
  OR
- ==> “RAD ERROR: <MESSAGE STRING> \r\n” and no heartbeat
+ ==> “RAD ERROR: <MESSAGE STRING> \r\n”
  
- 4. To pause data recording:
- <== “RAD OFF \r\n”
- Response:
- ==> “RAD OFF \r\n”  followed by cessation of 1Hz data stream
- 
- 5. 1Hz Heartbeat ASCII Format:
+ 3. 1Hz Heartbeat ASCII Format:
  ==> “RAD.VV yyyy:mm:dd  hh:mm:ss DDDDDDDDDD HHHHH PPPPP RRRRR \r\n"
  OR
  ==> “RAD ERROR: <MESSAGE STRING> \r\n"
@@ -434,28 +475,15 @@ void  Log_Data() {
  PPPPP            Pitch (in 1/10s of degrees)
  RRRRR            Roll (in 1/10s of degrees)
  
- 6. To  prepare the system to PowerDown:
- <== "RAD Power Down \r\n"
+ 4. To  prepare the system to PowerDown:
+ <== "RAD OFF \r\n"
  Response:
- ==> "RAD Powering Down... \r\n"
+ ==> "RAD Closing Files and Shutting Down... \r\n"
  <<wait>>
- ==> "RAD Ready to  power  down. \r\n"
+ ==> "RAD Ready to power down. \r\n"
  
- 7. To turn  WIFI On
- <== "RAD WiFi On \r\n"
- Response:
- ==> "RAD WiFi On \r\n"
- 
- 8. To turn  WIFI Off
- <== "RAD WiFi Off \r\n"
- Response:
- ==> "RAD WiFi Off \r\n"
- 
- 9. For help with commands:
- <== "RAD Help \r\n"
- Response:
- ==> "<LIST OF COMMANDS> \r\n"
 */
+
 
 void Serial_Comms()  {
     char Rbuffer[64]="",Wbuffer[64]="",NewCommand[64]="",NextSnip[64]="",fNewCommand=FALSE;
@@ -473,7 +501,7 @@ void Serial_Comms()  {
 //    serWrite(hSerial,(char *) msgGreetings,strlen(msgGreetings));
 printf("Serial Writting sttarred...\n");
 
-    while(TRUE) {
+    while(!fShutDown) {
 //         OUTLINE:
 //
 //         1. If there's data in the queue:
@@ -553,7 +581,7 @@ printf("Remaining Rbuffer: %s \n",Rbuffer);
             token = strtok(NewCommand, WS);
             if(strcmp(token,RadToken)==0) {
                 token = strtok(NULL,WS);
-                // ON
+                // TIME
                 if(strcmp(token,OnToken)==0) {
                     n = sscanf(NewCommand,"RAD ON %u:%u:%u %u:%u:%u \r",
                                &tmNew.tm_year,
@@ -566,50 +594,22 @@ printf("Remaining Rbuffer: %s \n",Rbuffer);
                         tmNew.tm_isdst = 0; // ignore DST, we're all using UTC
                         NewTime.tv_sec  = mktime(&tmNew);
                         NewTime.tv_nsec = 0;
-                        clock_settime(CLOCK_REALTIME,&NewTime);
+// ADD  CODE TO WRITE  TIME STAMP  TO METADATA
+//
+//                        clock_settime(CLOCK_REALTIME,&NewTime);
+//
+// ADD  CODE TO WRITE  TIME STAMP  TO METADATA
                         sprintf(Wbuffer,"RAD ON %u:%u:%u %u:%u:%u \r\n",tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday, tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec);
-                        fLogData=TRUE;
                         serWrite(hSerial, (char *)Wbuffer,strlen(Wbuffer));
                     }
                     else {serWrite(hSerial,(char *)msgErrorOn,strlen(msgErrorOn));}
                 }
-                // OFF
-                else if(strcmp(token,OffToken)==0) {
-                    fLogData=FALSE;
-                    serWrite(hSerial, (char *)msgOff,strlen(msgOff));
-                }
-                // WIFI
-                else if(strcmp(token,WiFiToken)==0) {
-                    token = strtok(NULL,WS);
-                    // WIFI ON
-                    if(strcmp(token,OnToken)==0) {
-                        system(cmdWiFiOn);
-                        serWrite(hSerial, (char *)msgWiFiOn,strlen(msgWiFiOn));
-                    }
-                    // WIFI  OFF
-                    else if(strcmp(token,OffToken)==0) {
-                        system(cmdWiFiOff);
-                        serWrite(hSerial, (char *)msgWiFiOff,strlen(msgWiFiOff));
-                    }
-                }
                 // POWERDOWN
                 else if(strcmp(token,PowerToken)==0) {
-                    fLogData=FALSE;
-                    fCloseFiles=TRUE;
+                    fShutDown=TRUE;
                     serWrite(hSerial, (char *)msgPoweringDown,strlen(msgPoweringDown));
                     // Do  Stuff as needed
-                    sleep(5);
-                    // Make sure  you're ready TO  DIE!!!
-                    while(fLogTerminated || !fCountTerminated){}
-                    serWrite(hSerial, (char *)msgPoweredDown,strlen(msgPoweredDown));
-                    
                 }
-                // HELP
-                else if(strcmp(token,HelpToken)==0) {serWrite(hSerial, (char *)msgHelp,strlen(msgHelp));}
-                // STATUS
-                else if(strcmp(token,StatusToken)==0) {serWrite(hSerial, (char *)msgStatus,strlen(msgStatus));}
-                // LOVE
-                else if(strcmp(token,LoveToken)==0) {serWrite(hSerial, (char *)msgLove,strlen(msgLove));};
             } // if(strcmp(token,RadToken)==0)
             else {serWrite(hSerial, (char *)msgNotRad,strlen(msgNotRad));};
         }
@@ -622,7 +622,6 @@ printf("Remaining Rbuffer: %s \n",Rbuffer);
                     tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday,
                     tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec,
                     LastSecPhotonCount,Tilt.heading,Tilt.pitch,Tilt.roll);
-            fLogData=TRUE;
             serWrite(hSerial,Wbuffer,strlen(Wbuffer));
         }
 
@@ -634,6 +633,53 @@ printf("Remaining Rbuffer: %s \n",Rbuffer);
     serClose(hSerial);
 
 }
+
+
+
+
+
+
+
+
+void Stdio_Comms()  {
+    struct timespec NewTime;
+    struct tm tmNew;
+
+    printf("Serial Writting sttarred...\n");
+
+    while(fShutDown==FALSE) {
+
+
+        // 3. If(fHeartbeatReady) Send 1Hz heartbeat over serial
+        if(fHeartbeatReady) {
+            fHeartbeatReady = FALSE;
+            printf("RAD LastSecCount: %u  Tilt: %u %u %u \r\n",
+                    LastSecPhotonCount,Tilt.heading,Tilt.pitch,Tilt.roll);
+        }
+
+
+        if(_kbhit()) {
+          fShutDown = TRUE;
+          printf("KBhit detected, shutting down... \r\n");
+         };
+//       sleep(1);
+
+
+
+
+
+
+    } // while(!fShutDown)
+
+    printf("StdioComms Ending! \r\n");
+
+}
+
+
+
+
+
+
 
 
 

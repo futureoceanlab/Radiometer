@@ -86,13 +86,13 @@ const uint16_t Lpins[] = {4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17};
 	    (tvp.tv_nsec cmp uvp.tv_nsec) :	\
 	    (tvp.tv_sec cmp uvp.tv_sec))
 
-#define	timespecadd(tsp, usp, vsp)		            \
+#define	timespecadd(ts, us, vs)		            \
 	do {								            \
-		vsp.tv_sec = tsp.tv_sec + usp.tv_sec;		\
-		vsp.tv_nsec = tsp.tv_nsec + usp.tv_nsec;	\
-		if (vsp.tv_nsec >= 1000000000L) {			\
-			vsp.tv_sec++;				            \
-			vsp.tv_nsec -= 1000000000L;			    \
+		vs.tv_sec = ts.tv_sec + us.tv_sec;		\
+		vs.tv_nsec = ts.tv_nsec + us.tv_nsec;	\
+		if (vs.tv_nsec >= 1000000000L) {			\
+			vs.tv_sec++;				            \
+			vs.tv_nsec -= 1000000000L;			    \
 		}							                \
 	} while (0)
 
@@ -156,8 +156,9 @@ typedef struct {
 
 // High-level Tasks
 void Count_Photons();
-void Log_Data();
+int  Log_Data();
 void Serial_Comms();
+void Stdio_Comms();
 
 // File IO
 void OpenFiles();
@@ -183,6 +184,25 @@ void Sleep_ns(int);
 #define Sleep_us(A)  Sleep_ns(1000*A)
 #define Sleep_ms(A)  Sleep_ns(1000000*A)
 
+int _kbhit() {
+    static const int __STDIN = 0;
+    static uint8_t initialized = 0;
+
+    if (! initialized) {
+        // Use termios to turn off line buffering
+        struct termios term;
+        tcgetattr(__STDIN, &term);
+        term.c_lflag &= ~ICANON;
+        tcsetattr(__STDIN, TCSANOW, &term);
+        setbuf(stdin, NULL);
+        initialized = 1;
+    }
+
+    int bytesWaiting;
+    ioctl(__STDIN, FIONREAD, &bytesWaiting);
+    return bytesWaiting;
+}
+
 
 
 
@@ -196,26 +216,18 @@ void Sleep_ns(int);
 // Data Buffers -- Need to  be global to share across threads,
 //      and volitile  to force update  across threads
 static volatile uint16_t  B1[2048],  B2[2048];// Two Data Buffers, 4096B each
-static uint16_t *pNewData, *pOldData, *pTmpData;  // To swap buffers elegantly.
+static volatile uint16_t *pNewData, *pOldData, *pTmpData;  // To swap buffers elegantly.
 static volatile tTilt     Tilt;
 static volatile uint32_t  LastSecPhotonCount=0;
 static volatile uint32_t  LastBlockPhotonCount=0;
 
 // Global Flags - A minimalist mutex semaphore
-static volatile uint8_t fLogData=FALSE;
-  // Switched by: SERIAL_CORE   Read by: WRITE CORE (wait while FALSE)
-static volatile uint8_t fCaptureData=FALSE;
-  // Switched by WRITE_CORE   Read by READ_CORE (wait while FALSE)
 static volatile uint8_t fBufferFull=FALSE;
   // Prevents  Collisions on Data Buffers
   // Switched ON by READ CORE (wait while ON)   Switched OFF by WRITE_CORE (wait while OFF)
-static volatile uint8_t fCloseFiles=FALSE;
-  // Tells WRITE_CORE to close  all open files.
-  // Switched ON by SERIAL_CORE (wait til OFF), SWITCHED OFF by WRITE_CORE
-static volatile uint8_t fLogTerminated=TRUE;
-static volatile uint8_t fCountTerminated=TRUE;
-  // Tell Serial Thread that the Count and Log threads are done (data
-  // written to storage, files closed, etc) and ready to shutdown.
+static volatile uint8_t fShutDown=FALSE;
+  // Flag telling all processes to run or shutdown.
+  // Read by everyone, Written by Serial_Comms ONLY
 static volatile uint8_t fHeartbeatReady=FALSE;
   // Flag letting Counter tell Serial that there's a heartbeat ready to go
 
@@ -253,6 +265,48 @@ const char msgNotRad[]    = "RAD ... You talking to me? \r\n";
 const char msgPoweringDown[]  = "Preparing to Power Down... \r\n";
 const char msgPoweredDown[]   = "Ready to Power Down, you Monster... \r\n";
 const char msgGreetings[]   = "RAD -- Hellow Bigelow!! Hello DeepSee!!  \r\n";
+
+
+
+
+
+// Stupid Binary  Outputt Tricks
+
+#define FOURBYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c %c%c%c%c%c%c%c%c %c%c%c%c%c%c%c%c %c%c%c%c%c%c%c%c"
+#define FOURBYTE_TO_BINARY(data)  \
+  (data & (1<<0) ? '1' : '0'), \
+  (data & (1<<1) ? '1' : '0'), \
+  (data & (1<<2) ? '1' : '0'), \
+  (data & (1<<3) ? '1' : '0'), \
+  (data & (1<<4) ? '1' : '0'), \
+  (data & (1<<5) ? '1' : '0'), \
+  (data & (1<<6) ? '1' : '0'), \
+  (data & (1<<7) ? '1' : '0'), \
+  (data & (1<<8) ? '1' : '0'), \
+  (data & (1<<9) ? '1' : '0'), \
+  (data & (1<<10) ? '1' : '0'), \
+  (data & (1<<11) ? '1' : '0'), \
+  (data & (1<<12) ? '1' : '0'), \
+  (data & (1<<13) ? '1' : '0'), \
+  (data & (1<<14) ? '1' : '0'), \
+  (data & (1<<15) ? '1' : '0'), \
+  (data & (1<<16) ? '1' : '0'), \
+  (data & (1<<17) ? '1' : '0'), \
+  (data & (1<<18) ? '1' : '0'), \
+  (data & (1<<19) ? '1' : '0'), \
+  (data & (1<<20) ? '1' : '0'), \
+  (data & (1<<21) ? '1' : '0'), \
+  (data & (1<<22) ? '1' : '0'), \
+  (data & (1<<23) ? '1' : '0'), \
+  (data & (1<<24) ? '1' : '0'), \
+  (data & (1<<25) ? '1' : '0'), \
+  (data & (1<<26) ? '1' : '0'), \
+  (data & (1<<27) ? '1' : '0'), \
+  (data & (1<<28) ? '1' : '0'), \
+  (data & (1<<29) ? '1' : '0'), \
+  (data & (1<<30) ? '1' : '0'), \
+  (data & (1<<31) ? '1' : '0')
+
 
 
 
