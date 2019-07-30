@@ -210,29 +210,25 @@ int main() {
     OpenSerial(); // Announce
     OpenFiles();
 
-//    printf("RAD <<%s>>: Hello %s! \r\n",RAD_NAME,SHIP_NAME);
-
     pNewData = B1;
     pOldData = B2;
 
 //    #pragma omp places(cores) proc_bind(spread)
+
 #pragma omp parallel num_threads(3)
     {
 #pragma omp single nowait
         {
-            // printf("RAD <<%s>>: Photon Counting Commenced \r\n",RAD_NAME);
             Count_Photons();
         }
 #pragma omp single nowait
         {
             Sleep_ms(1);
-            // printf("RAD <<%s>>: Data Logging Commenced\r\n",RAD_NAME);
             BlocksWritten = Log_Data();
         }
 #pragma omp single
         {
             Sleep_ms(2);
-            // printf("RAD Serial_Comms \r\n");
             Serial_Comms();
 //            Stdio_Comms();
         }
@@ -241,13 +237,10 @@ int main() {
 
     // Prepare to Power Down...
     CloseFiles(BlocksWritten);
-//    sleep(5);
     CloseGPIO();
     CloseSerial(BlocksWritten);
 
-//    printf("RAD <<%s>>: Goodbye %s! \r\n",RAD_NAME,SHIP_NAME);
     return 0;
-
 }
 
 
@@ -319,9 +312,6 @@ void  Count_Photons() {
             // Now reorder the relevant bits into a photon count in 5 operations...
             ObsPhotonCount =    ( (RawData & Mask[0]) >> 4 ) | //4
                                 ( (RawData & Mask[1]) >> 6 ) ; //6
-//YUCK
-//printf("%u \r\n",ObsPhotonCount);
-//YUCK 
             // End Critical Code
             // Release the Kracken!!!
             ////////////////////////////////////////////////////////////
@@ -382,11 +372,10 @@ int Log_Data() {
 
     while(fShutDown==FALSE) {
         // Spin until Data Ready 
-        while((fBufferFull==FALSE) && (fShutDown==FALSE)) {Sleep_ms(1);};
-        
+        while((fBufferFull==FALSE) && (fShutDown==FALSE)) {Sleep_us(1);};
+
         // Write pOldData to SD card
         fwrite((void *) pOldData, 1, DATA_BLOCK_SIZE, pDataFile);
-//        fflush(pDataFile);  <---- No need, we will flush upon eit  and otherwise let OS handle buffer
         fBufferFull = FALSE;
         BlocksWritten++;
 
@@ -607,8 +596,6 @@ void Stdio_Comms()  {
         // 3. If(fHeartbeatReady) Send 1Hz heartbeat over serial
         if(fHeartbeatReady) {
             fHeartbeatReady = FALSE;
-//            printf("RAD LastSecCount: %u  Tilt: %u %u %u \r\n",
-//                    LastSecPhotonCount,Tilt.heading,Tilt.pitch,Tilt.roll);
             printf("RAD: Counted %u Photons \r\n",
                     LastSecPhotonCount);
         }
@@ -618,7 +605,6 @@ void Stdio_Comms()  {
           fShutDown = TRUE;
           printf("KBhit detected, shutting down... \r\n");
          };
-//       sleep(1);
 
 
     } // while(!fShutDown)
