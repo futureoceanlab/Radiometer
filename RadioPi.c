@@ -240,6 +240,9 @@ int main() {
     CloseGPIO();
     CloseSerial(BlocksWritten);
 
+    if(fPowerDown ==  TRUE) system("sudo shutdown +1 System Shutting Down... ");
+//    if(fPowerDown ==  FALSE) system("ls -la");
+
     return 0;
 }
 
@@ -347,7 +350,7 @@ void  Count_Photons() {
         LastBlockPhotonCount = CurrentBlockPhotonCount;
         CurrentBlockPhotonCount = 0;
 
-        // If we've written 12 blocks, restart per-second photon count
+        // If we've written DATA_BLOCKS_PER_SEC blocks, restart per-second photon count
         if(++iBlock==DATA_BLOCKS_PER_SEC) {
             iBlock=0;
             LastSecPhotonCount=CurrentSecPhotonCount; 
@@ -372,7 +375,8 @@ int Log_Data() {
 
     while(fShutDown==FALSE) {
         // Spin until Data Ready 
-        while((fBufferFull==FALSE) && (fShutDown==FALSE)) {Sleep_us(1);};
+//        while((fBufferFull==FALSE) && (fShutDown==FALSE)) {Sleep_us(1);};
+        while((fBufferFull==FALSE) && (fShutDown==FALSE)) {};
 
         // Write pOldData to SD card
         fwrite((void *) pOldData, 1, DATA_BLOCK_SIZE, pDataFile);
@@ -428,7 +432,14 @@ int Log_Data() {
  PPPPP            Pitch (in 1/10s of degrees)
  RRRRR            Roll (in 1/10s of degrees)
  
- 4. To  prepare the system to PowerDown:
+ 4. To terminate the process (but not power down):
+ <== "RAD STOP \r\n"
+ Response:
+ ==> "RAD Closing Files and Terminating Process ... \r\n"
+ <<wait>>
+ ==> "RAD Process Terminated. \r\n"
+
+ 5. To Power Down the system
  <== "RAD OFF \r\n"
  Response:
  ==> "RAD Closing Files and Shutting Down... \r\n"
@@ -453,30 +464,40 @@ void Serial_Comms()  {
         // 1. Check for new command
         if(SerReadLine(NewCommand)==TRUE) {
             // Process Command
-            
             token = strtok(NewCommand,&WS);
-            
             if(strcmp(token,RadToken)==0) {
                 token = strtok(NULL,&WS);
+///////////////////////////////////////////////
+///////////////////////////////////////////////
 
                 // OFF
                 if(strcmp(token,OffToken)==0) {
                     fShutDown=TRUE;
                     sprintf(WBuffer,"RAD <<%s>>: %s",RAD_NAME,msgPoweringDown);
                     serWrite(hSerial, (char *)WBuffer,strlen(WBuffer));
-                    // Do  Stuff as needed
+                    fPowerDown = TRUE;
                 }
+
+                // STOP
+                if(strcmp(token,StopToken)==0) {
+                    fShutDown=TRUE;
+                    sprintf(WBuffer,"RAD <<%s>>: %s",RAD_NAME,msgPoweringDown);
+                    serWrite(hSerial, (char *)WBuffer,strlen(WBuffer));
+                    fPowerDown = FALSE;
+                }
+
+///////////////////////////////////////////////
+///////////////////////////////////////////////
 
             } // if(strcmp(token,RadToken)==0)
             
-            else {serWrite(hSerial, (char *)msgNotRad,strlen(msgNotRad));};
-
+//            else {serWrite(hSerial, (char *)msgNotRad,strlen(msgNotRad));};
             strcpy(NewCommand,"");
             
         }  // if(Ser_Read_Line(NewCommand))
         else if(strlen(NewCommand)>=126) {
             printf("Serial Buffer Overflow!! Truncating Buffer... \r\n");
-            NewCommand[0]='\0';
+            strcpy(NewCommand,"");
         }
         
         // 2. If(fHeartbeatReady) Send 1Hz heartbeat over serial

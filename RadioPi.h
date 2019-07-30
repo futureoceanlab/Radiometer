@@ -220,6 +220,8 @@ static volatile uint8_t fBufferFull=FALSE;
 static volatile uint8_t fShutDown=FALSE;
   // Flag telling all processes to run or shutdown.
   // Read by everyone, Written by Serial_Comms ONLY
+static volatile uint8_t fPowerDown=FALSE;
+  // Flag instructing main process to power down the Pi, set by Serial_Comms()
 static volatile uint8_t fHeartbeatReady=FALSE;
   // Flag letting Counter tell Serial that there's a heartbeat ready to go
 
@@ -235,6 +237,7 @@ static FILE *pDataFile,*pMetaFile;
 const char RadToken[]     = "RAD";
 const char TimeToken[]    = "TIME";
 const char OffToken[]     = "OFF";
+const char StopToken[]    = "STOP";
 const char WiFiToken[]    = "WIFI";
 const char PowerToken[]   = "POWERDOWN";
 const char HelpToken[]    =  "HELP";
