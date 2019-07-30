@@ -452,49 +452,21 @@ void Serial_Comms()  {
         
         // 1. Check for new command
         if(SerReadLine(NewCommand)==TRUE) {
-            printf("%s \r\n",NewCommand);
             // Process Command
             
             token = strtok(NewCommand,&WS);
             
             if(strcmp(token,RadToken)==0) {
                 token = strtok(NULL,&WS);
-/*
-                // TIME
-                if(strcmp(token,TimeToken)==0) {
-                    NewCommand[3]=WS;
-                    NewCommand[8]=WS;
-                    n = sscanf(NewCommand,"RAD TIME %u:%u:%u %u:%u:%u \r",
-                               &tmNew.tm_year,
-                               &tmNew.tm_mon,
-                               &tmNew.tm_mday,
-                               &tmNew.tm_hour,
-                               &tmNew.tm_min,
-                               &tmNew.tm_sec);
-                    if(n==6) {  // Set Time and Start Logging Data
-                        tmNew.tm_isdst = 0; // ignore DST, we're all using UTC
-                        NewTime.tv_sec  = mktime(&tmNew);
-                        NewTime.tv_nsec = 0;
-                        // ADD  CODE TO WRITE  TIME STAMP  TO METADATA
-                        //
-                        //                        clock_settime(CLOCK_REALTIME,&NewTime);
-                        //
-                        // ADD  CODE TO WRITE  TIME STAMP  TO METADATA
-                        sprintf(WBuffer,"RAD ON %u:%u:%u %u:%u:%u \r\n",tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday, tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec);
-                        serWrite(hSerial, (char *)WBuffer,strlen(WBuffer));
-                    }
-                    else {serWrite(hSerial,(char *)msgErrorOn,strlen(msgErrorOn));}
-                }
-*/
+
                 // OFF
-//                else if(strcmp(token,OffToken)==0) {
                 if(strcmp(token,OffToken)==0) {
                     fShutDown=TRUE;
-                    serWrite(hSerial, (char *)msgPoweringDown,strlen(msgPoweringDown));
+                    sprintf(WBuffer,"RAD <<%s>>: %s",RAD_NAME,msgPoweringDown);
+                    serWrite(hSerial, (char *)WBuffer,strlen(WBuffer));
                     // Do  Stuff as needed
                 }
-                // UNKNOWN
-                else  {serWrite(hSerial, (char *)msgNotRad,strlen(msgNotRad));};
+
             } // if(strcmp(token,RadToken)==0)
             
             else {serWrite(hSerial, (char *)msgNotRad,strlen(msgNotRad));};
@@ -502,7 +474,7 @@ void Serial_Comms()  {
             strcpy(NewCommand,"");
             
         }  // if(Ser_Read_Line(NewCommand))
-        else if(strlen(NewCommand)>=62) {
+        else if(strlen(NewCommand)>=126) {
             printf("Serial Buffer Overflow!! Truncating Buffer... \r\n");
             NewCommand[0]='\0';
         }
@@ -511,12 +483,10 @@ void Serial_Comms()  {
         if(fHeartbeatReady==TRUE) {
             fHeartbeatReady = FALSE;
             sprintf(WBuffer,"RAD <<%s>>: %u cps \r\n",RAD_NAME, LastSecPhotonCount);
-            //            printf("RAD LastSecCount: %u  Tilt: %u %u %u \r\n",
-            //                    LastSecPhotonCount,Tilt.heading,Tilt.pitch,Tilt.roll);
             serWrite(hSerial,WBuffer,strlen(WBuffer));
         } // if(fHeartbeatReady)
 
-        Sleep_ms(10);
+        Sleep_ms(2);
         
     } // while(fShutDown==FALSE)
 

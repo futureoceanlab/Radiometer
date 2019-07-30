@@ -47,7 +47,7 @@
 #define DATA_BLOCK_SIZE 4096        // Number of Bytes per data block written to storage
 #define DATA_HEADER_SIZE 32         // Number  of Bytes in the Header of each Data Block
 #define DATA_CHUNK_SIZE 4           // Number of Bytes per Data Chunk inside the Data Block: 2B time + 2B Data
-#define DATA_BLOCKS_PER_SEC 12      // Number of DataBlocks per second
+#define DATA_BLOCKS_PER_SEC 16      // Number of DataBlocks per second
                                     //   12 ==> 12192
                                     //   16 ==> 16256
 #define SAMPLES_PER_BLOCK ((DATA_BLOCK_SIZE-DATA_HEADER_SIZE)/DATA_CHUNK_SIZE)
@@ -89,24 +89,24 @@ const uint16_t Lpins[] = {4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17};
 	    (tvp.tv_nsec cmp uvp.tv_nsec) :	\
 	    (tvp.tv_sec cmp uvp.tv_sec))
 
-#define	timespecadd(ts, us, vs)		            \
-	do {								            \
-		vs.tv_sec = ts.tv_sec + us.tv_sec;		\
-		vs.tv_nsec = ts.tv_nsec + us.tv_nsec;	\
-		if (vs.tv_nsec >= 1000000000L) {			\
-			vs.tv_sec++;				            \
-			vs.tv_nsec -= 1000000000L;			    \
-		}							                \
+#define	timespecadd(ts, us, vs)		        \
+	do {					\
+		vs.tv_sec = ts.tv_sec + us.tv_sec;     \
+		vs.tv_nsec = ts.tv_nsec + us.tv_nsec;  \
+		if (vs.tv_nsec >= 1000000000L) {       \
+			vs.tv_sec++;   \
+			vs.tv_nsec -= 1000000000L;     \
+		}             \
 	} while (0)
 
 
-#define	timespecsub(tsp, usp, vsp)					\
-	do {								            \
-		vsp.tv_sec = tsp.tv_sec - usp.tv_sec;		\
-		vsp.tv_nsec = tsp.tv_nsec - usp.tv_nsec;	\
-		if (vsp.tv_nsec < 0) {				        \
-			vsp.tv_sec--;				            \
-			vsp.tv_nsec += 1000000000L;			    \
+#define	timespecsub(tsp, usp, vsp) \
+	do {		           \
+		vsp.tv_sec = tsp.tv_sec - usp.tv_sec;  \
+		vsp.tv_nsec = tsp.tv_nsec - usp.tv_nsec; \
+		if (vsp.tv_nsec < 0) {        \
+			vsp.tv_sec--;         \
+			vsp.tv_nsec += 1000000000L;    \
 		} \
 	} while (0)
 
