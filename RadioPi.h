@@ -157,6 +157,7 @@ void CloseFiles(uint16_t BlocksWritten);
 // User IO
 int  OpenSerial(void);
 void CloseSerial(uint16_t BlocksWritten);
+int  SerReadLine(char *NewCommand);
 
 // GPIO ACCESS
 int  InitGPIO(void);
@@ -227,11 +228,12 @@ const uint16_t Nw = (DATA_BLOCK_SIZE - DATA_HEADER_SIZE)/DATA_CHUNK_SIZE;
 
 // Other Global Variables
 static int hI2C; // I2C  File Handle for Tilt sensor
+static int hSerial; // Serial port handle
 static FILE *pDataFile,*pMetaFile;
 
 // SERIAL Messages
 const char RadToken[]     = "RAD";
-const char OnToken[]      = "ON";
+const char TimeToken[]    = "TIME";
 const char OffToken[]     = "OFF";
 const char WiFiToken[]    = "WIFI";
 const char PowerToken[]   = "POWERDOWN";
