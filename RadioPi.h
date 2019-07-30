@@ -47,7 +47,7 @@
 #define DATA_BLOCK_SIZE 4096        // Number of Bytes per data block written to storage
 #define DATA_HEADER_SIZE 32         // Number  of Bytes in the Header of each Data Block
 #define DATA_CHUNK_SIZE 4           // Number of Bytes per Data Chunk inside the Data Block: 2B time + 2B Data
-#define DATA_BLOCKS_PER_SEC 16      // Number of DataBlocks per second
+#define DATA_BLOCKS_PER_SEC 12      // Number of DataBlocks per second
                                     //   12 ==> 12192
                                     //   16 ==> 16256
 #define SAMPLES_PER_BLOCK ((DATA_BLOCK_SIZE-DATA_HEADER_SIZE)/DATA_CHUNK_SIZE)
@@ -259,7 +259,7 @@ const char msgPoweringDown[]  = "Preparing to Power Down... \r\n";
 const char msgPoweredDown[]   = "Ready to Power Down, you Monster... \r\n";
 const char msgGreetings[]   = "RAD -- Hellow Bigelow!! Hello DeepSee!!  \r\n";
 
-
+const char WS = ' ';
 
 
 

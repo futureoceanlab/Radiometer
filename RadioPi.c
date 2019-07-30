@@ -234,7 +234,7 @@ int main() {
             Sleep_ms(2);
             // printf("RAD Serial_Comms \r\n");
             Serial_Comms();
-            // Stdio_Comms();
+//            Stdio_Comms();
         }
         
     }
@@ -243,7 +243,7 @@ int main() {
     CloseFiles(BlocksWritten);
 //    sleep(5);
     CloseGPIO();
-    CloseSerial();
+    CloseSerial(BlocksWritten);
 
 //    printf("RAD <<%s>>: Goodbye %s! \r\n",RAD_NAME,SHIP_NAME);
     return 0;
@@ -268,9 +268,6 @@ void  Count_Photons() {
     
     Mask[0] = ((1 << 10) -1) << Lpins[0];
     Mask[1] = ((1 <<  2) -1) << Lpins[10];
-
-
-
     
     // NOTE: Include one termination '\0' so that  it's  clearly  readable as an ascii  string
     strncpy((char *)DataHeader,"@@@@@@@@@@@@@@@@@",18); 
@@ -278,9 +275,6 @@ void  Count_Photons() {
     dt.tv_sec = 0;
     dt.tv_nsec = ONE_BILLION / SAMPLES_PER_SEC; // Nanoseconds per sample
     
-
-
-
     // Initialize Clocks and Counters
     // First data sample, initialise clocks etc
     //    Reset the counter and toggle the latch:
@@ -292,7 +286,6 @@ void  Count_Photons() {
 
     timespecadd(t,dt,tn); // tn = t + dt;
     to=t;
-
 
     // MAIN LOOP: CAPTURE PHOTON COUNTS
     while(fShutDown==FALSE){ // eternal loop --  THIS IS WHERE WE INTERRUPT THE CYCLE TO SHUTDOWN
@@ -457,19 +450,27 @@ int Log_Data() {
 
 
 void Serial_Comms()  {
-    char NewCommand[64]="";
-    char WBuffer[64]="";
+    char NewCommand[128];
+    char WBuffer[128];
+    char *token;
+    int  n=0;
+    struct tm tmNew;
+    struct timespec NewTime;
+
+
     
     while(fShutDown==FALSE) {
         
         // 1. Check for new command
         if(SerReadLine(NewCommand)==TRUE) {
+            printf("%s \r\n",NewCommand);
             // Process Command
             
-            token = strtok(NewCommand, WS);
+            token = strtok(NewCommand,&WS);
             
             if(strcmp(token,RadToken)==0) {
-                token = strtok(NULL,WS);
+                token = strtok(NULL,&WS);
+/*
                 // TIME
                 if(strcmp(token,TimeToken)==0) {
                     NewCommand[3]=WS;
@@ -490,13 +491,15 @@ void Serial_Comms()  {
                         //                        clock_settime(CLOCK_REALTIME,&NewTime);
                         //
                         // ADD  CODE TO WRITE  TIME STAMP  TO METADATA
-                        sprintf(Wbuffer,"RAD ON %u:%u:%u %u:%u:%u \r\n",tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday, tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec);
-                        serWrite(hSerial, (char *)Wbuffer,strlen(Wbuffer));
+                        sprintf(WBuffer,"RAD ON %u:%u:%u %u:%u:%u \r\n",tmNew.tm_year, tmNew.tm_mon, tmNew.tm_mday, tmNew.tm_hour, tmNew.tm_min, tmNew.tm_sec);
+                        serWrite(hSerial, (char *)WBuffer,strlen(WBuffer));
                     }
                     else {serWrite(hSerial,(char *)msgErrorOn,strlen(msgErrorOn));}
                 }
+*/
                 // OFF
-                else if(strcmp(token,OffToken)==0) {
+//                else if(strcmp(token,OffToken)==0) {
+                if(strcmp(token,OffToken)==0) {
                     fShutDown=TRUE;
                     serWrite(hSerial, (char *)msgPoweringDown,strlen(msgPoweringDown));
                     // Do  Stuff as needed
@@ -506,6 +509,8 @@ void Serial_Comms()  {
             } // if(strcmp(token,RadToken)==0)
             
             else {serWrite(hSerial, (char *)msgNotRad,strlen(msgNotRad));};
+
+            strcpy(NewCommand,"");
             
         }  // if(Ser_Read_Line(NewCommand))
         else if(strlen(NewCommand)>=62) {
@@ -531,9 +536,9 @@ void Serial_Comms()  {
 
 
 int OpenSerial(void) {
-    char WBuffer[64];
+    char WBuffer[128];
     
-    if(hSerial = serOpen("/dev/ttyAMA0", 19200, 0)) {
+    if( (hSerial = serOpen("/dev/ttyAMA0", 19200, 0)) >=0 ) {
         sprintf(WBuffer,"RAD <<%s>>: Hello %s! Serial Comms Open! \r\n",RAD_NAME,SHIP_NAME);
         serWrite(hSerial,WBuffer,strlen(WBuffer));
         return hSerial;
@@ -549,7 +554,7 @@ int OpenSerial(void) {
 
 
 void   CloseSerial(uint16_t BlocksWritten) {
-    char WBuffer[64];
+    char WBuffer[128];
 
     sprintf(WBuffer,"RAD <<%s>>: Session Terminated, Wrote %u Blocks of Data \r\n",RAD_NAME,BlocksWritten);
     serWrite(hSerial,WBuffer,strlen(WBuffer));
@@ -563,10 +568,12 @@ void   CloseSerial(uint16_t BlocksWritten) {
 
 
 int SerReadLine(char *NewCommand) {
-    static int i=0,n=0,c=0,len=strlen(NewCommand);
+    static int i=0,n=0,c=0,len=0;
+
+    len = strlen(NewCommand);
     
-    if(n = serDataAvailable(hSerial)) {
-        for(i=0;i++,len++;i<n) {
+    if( (n = serDataAvailable(hSerial)) ) {
+        for(i=0;i<n;i++,len++) {
             c = serReadByte(hSerial);
             if(c == '\n') {
                 NewCommand[len]='\0';
@@ -580,7 +587,7 @@ int SerReadLine(char *NewCommand) {
         } // for
     } // if
 
-    return(FALSE)
+    return(FALSE);
 }; //SerReadLine()
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -591,8 +598,6 @@ int SerReadLine(char *NewCommand) {
 */
 
 void Stdio_Comms()  {
-    struct timespec NewTime;
-    struct tm tmNew;
 
     printf("Serial Writting sttarred...\n");
 
