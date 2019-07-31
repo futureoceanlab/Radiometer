@@ -261,7 +261,7 @@ int main() {
     CloseGPIO();
     CloseSerial(BlocksWritten);
 
-    if(fPowerDown ==  TRUE) system("sudo shutdown +1 System Shutting Down... ");
+    if(fPowerDown ==  TRUE) system("sudo shutdown now");
 //    if(fPowerDown ==  FALSE) system("ls -la");
 
     return 0;
