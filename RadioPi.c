@@ -196,6 +196,7 @@
 //#define RAD_NAME "Statler"
 #define RAD_NAME "Waldorf"
 
+//#define CHECK_BUFFER_DELAYS 1
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  %                                                                             %
@@ -222,7 +223,7 @@ int main() {
 
 #pragma omp section 
         {
-	    printf( "Hello world from Count thread %d of %d running on cpu %d \n", \
+	    printf( "Hello world from Count thread %d of %d running on core %d \n", \
 	    omp_get_thread_num()+1, \
 	    omp_get_num_threads(),\
 	    sched_getcpu());
@@ -232,7 +233,7 @@ int main() {
 #pragma omp section
         {
             Sleep_ms(1);
-	    printf( "Hello world from Log thread %d of %d running on cpu %d \n", \
+	    printf( "Hello world from Log thread %d of %d running on core %d \n", \
 	    omp_get_thread_num()+1, \
 	    omp_get_num_threads(),\
 	    sched_getcpu());
@@ -242,7 +243,7 @@ int main() {
 #pragma omp section 
         {
             Sleep_ms(2);
-	    printf( "Hello world from Serial thread %d of %d running on cpu %d \n", \
+	    printf( "Hello world from Serial thread %d of %d running on core %d \n", \
 	    omp_get_thread_num()+1, \
 	    omp_get_num_threads(),\
 	    sched_getcpu());
@@ -359,6 +360,7 @@ void  Count_Photons() {
         // Buffer Filled, time to swap buffer!
         //
         // Spin until old buffer is available for swapping... 
+#ifdef CHECK_BUFFER_DELAYS
         clock_gettime(CLOCK_REALTIME, &tErr1);
         timespeccpy(tErr1,tErr2);
 	while((fBufferFull==TRUE) && (fShutDown==FALSE)) {
@@ -373,6 +375,9 @@ void  Count_Photons() {
                 tt = tErr2.tv_sec + (tErr2.tv_nsec / ONE_BILLION);
 		sprintf(sDelayMsg,"RAD <<%s>>: Buffer delay %u of duration %lf s \r\n",RAD_NAME,iDelay,tt);
 	}
+#else
+	while((fBufferFull==TRUE) && (fShutDown==FALSE)) {iDelay++;};
+#endif
         // OldBuffer has been cleared, we can now swap pointers safely...
         pTmpData = pNewData;
         pNewData = pOldData;
@@ -540,15 +545,17 @@ void Serial_Comms()  {
             fHeartbeatReady = FALSE;
             sprintf(WBuffer,"RAD %s: %u cps \r\n",RAD_NAME, LastSecPhotonCount);
             serWrite(hSerial,WBuffer,strlen(WBuffer));
+            printf(WBuffer);
         } // if(fHeartbeatReady)
         
+#ifdef CHECK_BUFFER_DELAYS
         // 3. If(fDelayMsg) announce the delay over error pipe
         if(fDelayMsg==TRUE) {
             fDelayMsg = FALSE;
             serWrite(hSerial,sDelayMsg,strlen(sDelayMsg));
             printf(sDelayMsg);
         } // if(fHeartbeatReady)
-
+#endif
         Sleep_ms(2);
         
     } // while(fShutDown==FALSE)
