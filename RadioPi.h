@@ -229,6 +229,8 @@ static volatile uint8_t fPowerDown=FALSE;
   // Flag instructing main process to power down the Pi, set by Serial_Comms()
 static volatile uint8_t fHeartbeatReady=FALSE;
   // Flag letting Counter tell Serial that there's a heartbeat ready to go
+static volatile uint8_t fDelayMsg=FALSE;
+  // Flag letting Counter tell Serial that there's been a delay with the buffers
 
 // Timing Variables
 const uint16_t Nw = (DATA_BLOCK_SIZE - DATA_HEADER_SIZE)/DATA_CHUNK_SIZE;
@@ -237,6 +239,7 @@ const uint16_t Nw = (DATA_BLOCK_SIZE - DATA_HEADER_SIZE)/DATA_CHUNK_SIZE;
 static int hI2C; // I2C  File Handle for Tilt sensor
 static int hSerial; // Serial port handle
 static FILE *pDataFile,*pMetaFile;
+static char sDelayMsg[128];
 
 // SERIAL Messages
 const char RadToken[]     = "RAD";

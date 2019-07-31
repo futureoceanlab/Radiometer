@@ -219,6 +219,8 @@ int main() {
 {
 #pragma omp sections nowait
     {
+
+/*
 #pragma omp section 
         {
 	    printf( "Hello world from Count thread %d of %d running on cpu %2d!\n", \
@@ -249,6 +251,42 @@ int main() {
             Serial_Comms();
         }
         
+
+*/
+
+#pragma omp section 
+        {
+            switch(sched_getcpu())
+	    printf( "Hello world from Count thread %d of %d running on cpu %2d!\n", \
+	    omp_get_thread_num()+1, \
+	    omp_get_num_threads(),\
+	    sched_getcpu());
+//
+            Count_Photons();
+        }
+#pragma omp section
+        {
+            Sleep_ms(1);
+	    printf( "Hello world from Log thread %d of %d running on cpu %2d!\n", \
+	    omp_get_thread_num()+1, \
+	    omp_get_num_threads(),\
+	    sched_getcpu());
+//
+            BlocksWritten = Log_Data();
+        }
+#pragma omp section 
+        {
+	    printf( "Hello world from Serial thread %d of %d running on cpu %2d!\n", \
+	    omp_get_thread_num()+1, \
+	    omp_get_num_threads(),\
+	    sched_getcpu());
+//
+            Sleep_ms(2);
+            Serial_Comms();
+        }
+        
+
+
     }
 }
 
@@ -277,8 +315,9 @@ void  Count_Photons() {
     uint32_t RawData=0, CurrentBlockPhotonCount=0, CurrentSecPhotonCount=0;
     uint16_t ObsPhotonCount=0, ObsTime=0;
     uint16_t DataHeader[16];
-    uint16_t iBlock=0,fDelay=FALSE;
+    uint16_t iBlock=0,fDelay=FALSE,iDelay=0;
     uint32_t Mask[2];
+    double tt=0;
     
     Mask[0] = ((1 << 10) -1) << Lpins[0];
     Mask[1] = ((1 <<  2) -1) << Lpins[10];
@@ -363,8 +402,11 @@ void  Count_Photons() {
 	}; // Hang until OldData has been written and released by Storage thread
 	if(fDelay==TRUE) {
 		fDelay=FALSE;
+                iDelay++;
 		timespecsub(tErr2,tErr1,tErr2);
-		printf("RAD <<%s>>: Buffer delay of duration %lu.%lu s \r\n",RAD_NAME,tErr2.tv_sec,tErr2.tv_nsec);
+		fDelayMsg = TRUE;
+                tt = tErr2.tv_sec + (tErr2.tv_nsec / ONE_BILLION);
+		sprintf(sDelayMsg,"RAD <<%s>>: Buffer delay %u of duration %lf s \r\n",RAD_NAME,iDelay,tt);
 	}
         // OldBuffer has been cleared, we can now swap pointers safely...
         pTmpData = pNewData;
@@ -501,7 +543,7 @@ void Serial_Comms()  {
                 // OFF
                 if(strcmp(token,OffToken)==0) {
                     fShutDown=TRUE;
-                    sprintf(WBuffer,"RAD <<%s>>: %s",RAD_NAME,msgPoweringDown);
+                    sprintf(WBuffer,"RAD %s: %s",RAD_NAME,msgPoweringDown);
                     serWrite(hSerial, (char *)WBuffer,strlen(WBuffer));
                     fPowerDown = TRUE;
                 }
@@ -509,7 +551,7 @@ void Serial_Comms()  {
                 // STOP
                 if(strcmp(token,StopToken)==0) {
                     fShutDown=TRUE;
-                    sprintf(WBuffer,"RAD <<%s>>: %s",RAD_NAME,msgPoweringDown);
+                    sprintf(WBuffer,"RAD %s: %s",RAD_NAME,msgPoweringDown);
                     serWrite(hSerial, (char *)WBuffer,strlen(WBuffer));
                     fPowerDown = FALSE;
                 }
@@ -531,8 +573,15 @@ void Serial_Comms()  {
         // 2. If(fHeartbeatReady) Send 1Hz heartbeat over serial
         if(fHeartbeatReady==TRUE) {
             fHeartbeatReady = FALSE;
-            sprintf(WBuffer,"RAD <<%s>>: %u cps \r\n",RAD_NAME, LastSecPhotonCount);
+            sprintf(WBuffer,"RAD %s: %u cps \r\n",RAD_NAME, LastSecPhotonCount);
             serWrite(hSerial,WBuffer,strlen(WBuffer));
+        } // if(fHeartbeatReady)
+        
+        // 3. If(fDelayMsg) announce the delay over error pipe
+        if(fDelayMsg==TRUE) {
+            fDelayMsg = FALSE;
+            serWrite(hSerial,sDelayMsg,strlen(sDelayMsg));
+            printf(sDelayMsg);
         } // if(fHeartbeatReady)
 
         Sleep_ms(2);
@@ -547,11 +596,11 @@ int OpenSerial(void) {
     char WBuffer[128];
     
     if( (hSerial = serOpen("/dev/ttyAMA0", 19200, 0)) >=0 ) {
-        sprintf(WBuffer,"RAD <<%s>>: Hello %s! Serial Comms Open! \r\n",RAD_NAME,SHIP_NAME);
+        sprintf(WBuffer,"\r\n \r\nRAD %s: Hello %s! Serial Comms Open! \r\n",RAD_NAME,SHIP_NAME);
         serWrite(hSerial,WBuffer,strlen(WBuffer));
         return hSerial;
     } else {
-        sprintf(WBuffer,"RAD <<%s>>: ERROR: Serial Comms Unavailable! \r\n",RAD_NAME);
+        sprintf(WBuffer,"RAD %s: ERROR: Serial Comms Unavailable! \r\n",RAD_NAME);
         printf("%s",WBuffer);
         return hSerial;
     } // else if
@@ -564,10 +613,10 @@ int OpenSerial(void) {
 void   CloseSerial(uint16_t BlocksWritten) {
     char WBuffer[128];
 
-    sprintf(WBuffer,"RAD <<%s>>: Session Terminated, Wrote %u Blocks of Data \r\n",RAD_NAME,BlocksWritten);
+    sprintf(WBuffer,"RAD %s: Session Terminated, Wrote %u Blocks of Data \r\n",RAD_NAME,BlocksWritten);
     serWrite(hSerial,WBuffer,strlen(WBuffer));
 
-    sprintf(WBuffer,"RAD <<%s>>: Now Signing Off! Farewell %s! \r\n",RAD_NAME,SHIP_NAME);
+    sprintf(WBuffer,"RAD %s: Now Signing Off! Farewell %s! \r\n \r\n",RAD_NAME,SHIP_NAME);
     serWrite(hSerial,WBuffer,strlen(WBuffer));
 
     serClose(hSerial);
@@ -607,7 +656,7 @@ int SerReadLine(char *NewCommand) {
 
 void Stdio_Comms()  {
 
-    printf("Serial Writting sttarred...\n");
+    printf("Serial Writing started...\n");
 
     while(fShutDown==FALSE) {
 
