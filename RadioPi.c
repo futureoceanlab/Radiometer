@@ -216,24 +216,42 @@ int main() {
 //    #pragma omp places(cores) proc_bind(spread)
 
 #pragma omp parallel num_threads(3)
+{
+#pragma omp sections nowait
     {
-#pragma omp single nowait
+#pragma omp section 
         {
+	    printf( "Hello world from Count thread %d of %d running on cpu %2d!\n", \
+	    omp_get_thread_num()+1, \
+	    omp_get_num_threads(),\
+	    sched_getcpu());
+//
             Count_Photons();
         }
-#pragma omp single nowait
+#pragma omp section
         {
             Sleep_ms(1);
+	    printf( "Hello world from Log thread %d of %d running on cpu %2d!\n", \
+	    omp_get_thread_num()+1, \
+	    omp_get_num_threads(),\
+	    sched_getcpu());
+//
             BlocksWritten = Log_Data();
         }
-#pragma omp single
+#pragma omp section 
         {
+	    printf( "Hello world from Serial thread %d of %d running on cpu %2d!\n", \
+	    omp_get_thread_num()+1, \
+	    omp_get_num_threads(),\
+	    sched_getcpu());
+//
             Sleep_ms(2);
             Serial_Comms();
-//            Stdio_Comms();
         }
         
     }
+}
+
 
     // Prepare to Power Down...
     CloseFiles(BlocksWritten);
@@ -255,11 +273,11 @@ int main() {
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  */
 void  Count_Photons() {
-    struct timespec t, to, dt, Dt, tn;
+    struct timespec t, to, dt, Dt, tn,tErr1,tErr2;
     uint32_t RawData=0, CurrentBlockPhotonCount=0, CurrentSecPhotonCount=0;
     uint16_t ObsPhotonCount=0, ObsTime=0;
     uint16_t DataHeader[16];
-    uint16_t iBlock=0;
+    uint16_t iBlock=0,fDelay=FALSE;
     uint32_t Mask[2];
     
     Mask[0] = ((1 << 10) -1) << Lpins[0];
@@ -337,7 +355,17 @@ void  Count_Photons() {
         // Buffer Filled, time to swap buffer!
         //
         // Spin until old buffer is available for swapping... 
-        while((fBufferFull==TRUE) && (fShutDown==FALSE)){printf("Buffer Filled, Counting Paused!!! \r\n");}; // Hang until OldData has been written and released by Storage thread
+        clock_gettime(CLOCK_REALTIME, &tErr1);
+        timespeccpy(tErr1,tErr2);
+	while((fBufferFull==TRUE) && (fShutDown==FALSE)) {
+                clock_gettime(CLOCK_REALTIME, &tErr2);
+		fDelay=TRUE;
+	}; // Hang until OldData has been written and released by Storage thread
+	if(fDelay==TRUE) {
+		fDelay=FALSE;
+		timespecsub(tErr2,tErr1,tErr2);
+		printf("RAD <<%s>>: Buffer delay of duration %lu.%lu s \r\n",RAD_NAME,tErr2.tv_sec,tErr2.tv_nsec);
+	}
         // OldBuffer has been cleared, we can now swap pointers safely...
         pTmpData = pNewData;
         pNewData = pOldData;
@@ -453,9 +481,9 @@ void Serial_Comms()  {
     char NewCommand[128];
     char WBuffer[128];
     char *token;
-    int  n=0;
-    struct tm tmNew;
-    struct timespec NewTime;
+//    int  n=0;
+//    struct tm tmNew;
+//    struct timespec NewTime;
 
 
     
@@ -645,6 +673,8 @@ int    OpenFiles(void)  {
     fprintf(pMetaFile,"%s, %s \r\n",CRUISE_NAME,SHIP_NAME);
     fprintf(pMetaFile,"File Created at %s \r\n",sHeaderTime);
     
+    fflush(pMetaFile);
+
     return 0;
 }
 
@@ -883,3 +913,41 @@ void Sleep_ns(int nS) { // cross-platform sleep function
  #pragma omp flush // Essential for making sure flags are seen  across threads!!!
  #pragma omp atomic // next line, an assignment,  is atomic!
  */
+
+
+
+/*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ %                                                                             %
+ %                           Run RadioPi on Boot                               %
+ %                                                                             %
+ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+BETTER:
+
+sudo crontab -e
+
+	@reboot sudo /home/pi/src/Radiometer/RadioPi.sh
+
+
+
+ALTERNATE:
+
+sudo nano /lib/systemd/system/RadioPi.service
+
+	[Unit]
+	Description=Radiometer Startup Code
+	After=multi-user.target
+
+	[Service]
+	Type=idle
+	ExecStart=/home/pi/src/Radiometer/RadioPi.sh 
+
+	[Install]
+	WantedBy=multi-user.target
+
+
+sudo chmod 644 /lib/systemd/system/RadioPi.service
+sudo systemctl daemon-reload
+sudo systemctl enable RadioPi.service
+
+*/

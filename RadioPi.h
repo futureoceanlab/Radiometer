@@ -27,6 +27,7 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <pigpio.h>
+#include <sched.h>
 //#include <sys/select.h>
 //#include <stropts.h>
 
@@ -84,29 +85,33 @@ const uint16_t Lpins[] = {4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17};
 // Converted to use  structs rather than pointers to structs (in a define)
 #define	timespecclear(tvp)	(tvp.tv_sec = tvp.tv_nsec = 0)
 
-#define	timespeccmp(tvp, uvp, cmp)		\
-	((tvp.tv_sec == uvp.tv_sec) ?		\
-	    (tvp.tv_nsec cmp uvp.tv_nsec) :	\
-	    (tvp.tv_sec cmp uvp.tv_sec))
+#define	timespeccpy(a, b)		\
+	{ b.tv_sec  = a.tv_sec;		\
+	  b.tv_nsec = a.tv_nsec; }
 
-#define	timespecadd(ts, us, vs)		        \
+#define	timespeccmp(a, b, cmp)		\
+	((a.tv_sec  ==  b.tv_sec) ?		\
+	 (a.tv_nsec cmp b.tv_nsec) :	\
+	 (a.tv_sec  cmp b.tv_sec))
+
+#define	timespecadd(a, b, c)		        \
 	do {					\
-		vs.tv_sec = ts.tv_sec + us.tv_sec;     \
-		vs.tv_nsec = ts.tv_nsec + us.tv_nsec;  \
-		if (vs.tv_nsec >= 1000000000L) {       \
-			vs.tv_sec++;   \
-			vs.tv_nsec -= 1000000000L;     \
+		c.tv_sec  = a.tv_sec  + b.tv_sec;     \
+		c.tv_nsec = a.tv_nsec + b.tv_nsec;  \
+		if (c.tv_nsec >= 1000000000L) {       \
+			c.tv_sec++;   \
+			c.tv_nsec -= 1000000000L;     \
 		}             \
 	} while (0)
 
 
-#define	timespecsub(tsp, usp, vsp) \
+#define	timespecsub(a, b, c) \
 	do {		           \
-		vsp.tv_sec = tsp.tv_sec - usp.tv_sec;  \
-		vsp.tv_nsec = tsp.tv_nsec - usp.tv_nsec; \
-		if (vsp.tv_nsec < 0) {        \
-			vsp.tv_sec--;         \
-			vsp.tv_nsec += 1000000000L;    \
+		c.tv_sec  = a.tv_sec  - b.tv_sec;  \
+		c.tv_nsec = a.tv_nsec - b.tv_nsec; \
+		if (c.tv_nsec < 0) {        \
+			c.tv_sec--;         \
+			c.tv_nsec += 1000000000L;    \
 		} \
 	} while (0)
 
