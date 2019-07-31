@@ -8,6 +8,5 @@ export OMP_PROC_BIND=spread
 export OMP_CPU_AFFINITY=3,2,1
 export GOMP_CPU_AFFINITY=3,2,1
 
-#sudo nice -n -20 ./RadioPi > ERR.txt &
-sudo nice -n -20 ./RadioPi 
+sudo nice -n -20 ./RadioPi > ERR.txt &
 echo "RadioPi Running in Background.."
