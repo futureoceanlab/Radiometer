@@ -655,8 +655,8 @@ void Stdio_Comms()  {
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  */
 int    OpenFiles(void)  {
-    char sFileNameTime[24],sHeaderTime[24],sFileNameTxt[48],sFileNameBin[48];
-    const char sFileRoot[]="FOL_RAD_";
+    char sFileNameTime[24],sHeaderTime[24],sFileNameTxt[128],sFileNameBin[128];
+    const char sFileRoot[]="/home/pi/src/Radiometer/Data/FOL_RAD_";
     time_t rawtime;
     struct tm *timeinfo;
     

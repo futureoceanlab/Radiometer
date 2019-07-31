@@ -1,0 +1,3 @@
+Hello world from Count thread 2 of 3 running on cpu 0 
+Hello world from Log thread 1 of 3 running on cpu 2 
+Hello world from Serial thread 3 of 3 running on cpu 3 
