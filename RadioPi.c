@@ -256,7 +256,6 @@ int main() {
 
 #pragma omp section 
         {
-            switch(sched_getcpu())
 	    printf( "Hello world from Count thread %d of %d running on cpu %2d!\n", \
 	    omp_get_thread_num()+1, \
 	    omp_get_num_threads(),\
