@@ -220,10 +220,9 @@ int main() {
 #pragma omp sections nowait
     {
 
-/*
 #pragma omp section 
         {
-	    printf( "Hello world from Count thread %d of %d running on cpu %2d!\n", \
+	    printf( "Hello world from Count thread %d of %d running on cpu %d \n", \
 	    omp_get_thread_num()+1, \
 	    omp_get_num_threads(),\
 	    sched_getcpu());
@@ -233,7 +232,7 @@ int main() {
 #pragma omp section
         {
             Sleep_ms(1);
-	    printf( "Hello world from Log thread %d of %d running on cpu %2d!\n", \
+	    printf( "Hello world from Log thread %d of %d running on cpu %d \n", \
 	    omp_get_thread_num()+1, \
 	    omp_get_num_threads(),\
 	    sched_getcpu());
@@ -242,45 +241,12 @@ int main() {
         }
 #pragma omp section 
         {
-	    printf( "Hello world from Serial thread %d of %d running on cpu %2d!\n", \
-	    omp_get_thread_num()+1, \
-	    omp_get_num_threads(),\
-	    sched_getcpu());
-//
             Sleep_ms(2);
-            Serial_Comms();
-        }
-        
-
-*/
-
-#pragma omp section 
-        {
-	    printf( "Hello world from Count thread %d of %d running on cpu %2d!\n", \
+	    printf( "Hello world from Serial thread %d of %d running on cpu %d \n", \
 	    omp_get_thread_num()+1, \
 	    omp_get_num_threads(),\
 	    sched_getcpu());
 //
-            Count_Photons();
-        }
-#pragma omp section
-        {
-            Sleep_ms(1);
-	    printf( "Hello world from Log thread %d of %d running on cpu %2d!\n", \
-	    omp_get_thread_num()+1, \
-	    omp_get_num_threads(),\
-	    sched_getcpu());
-//
-            BlocksWritten = Log_Data();
-        }
-#pragma omp section 
-        {
-	    printf( "Hello world from Serial thread %d of %d running on cpu %2d!\n", \
-	    omp_get_thread_num()+1, \
-	    omp_get_num_threads(),\
-	    sched_getcpu());
-//
-            Sleep_ms(2);
             Serial_Comms();
         }
         
