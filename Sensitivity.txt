@@ -1,0 +1,65 @@
+Let's translate the sensitivity of the bare sensor into the units more typically used to measure insolation, eg:
+	uMoleQ / m^2 s
+For  simplicity I'll abbreviate that to Ka, eg 1 Ka = 1  uMoleQ/m^2 s
+
+Kaartvedt wants to define the OTZ as 1E-1 Ka to 1E-9 Ka.  I don't think  that's a good definition  of the OTZ< but its's a very useful concept,  so  I'll call it the KTZ, as in:
+
+	"The KTZ is defined as regions of the ocean between 1E-1 Ka and 1E-9 Kz"
+
+Now let's do some unit conversions.
+
+Moles:
+1 MoleQ  = 6E23 Quanta
+1 uMoleQ = 6E17 Quanta
+1 Quanta = 1.67 E-18 uMoleQ
+
+Hamamatsu Spec Sheet:
+
+Area: (1.3mm)^2 =  1.7E-6 m^2
+Dark Noise: 2.5E3 Quanta / s  
+Saturation: 1E7 Quanta / s
+
+Q = 2.5E3 / 1.7 E-6 Quanta/m^2 s
+  = 1.5E9 Quanta / m^s
+  = 1.5E9 * 1.67E-18 uMoleQ / m^2 s
+  = 2.5E-9 Ka
+
+In fact, the situation in the lab differs in several ways:
+
+1. The observed noise floor is actually a stochastic distribution with:
+	mean: 2400cps
+	std:  125cps
+	2sigma: 250cps
+That means that in situations where we can integrate for a second or two, we can measure down to about 250cps, a factor of ~10 better than the naive noise floor.  That's not so helpful for bioluminescence, but it's  great for steady insolation.
+
+2. The Saturation number above is conservative.  The sensor is nicely linear between about 1E3  and 1E7, but starts to deviate significantly from  linearity above 1E7.  With that  said it deviates in a totally systematic way up  until  around 2.5E7, and we can still use those data, provided they are properly calibrated. 
+
+3. If a photon hits while the comparator is high, the output remains high  without a corresponding falling edge.  We thus loose that  photon.  Thus when fully saturated, we get 0 clicks.  If we could measure the *duration* of the clicks on the radiometer, not just  the number of falling edges, that would give us a lot more precision, but that measurement is  impractical.  Nearly as good would be to build logic to detect pulses longer than a threshold and feed that to a second counter:
+
+IN___(Rising Edge)__(delay logic)__|---\
+   |                               |And |---(Counter)
+   |_______________________________|---/
+
+That simple model  has the problem that a pair of  close pulses looks  like a long pulse.  But that's OK  -- if they're that close too  often, you're definitely near saturation!
+
+Upshot:  Hamamatsu bare sensor, with integration but without extra calibration or pulse width logic, gives a dynamic range of
+
+BARE:	2.5E-10 Ka  --   2.5E-5 Ka
+
+Adding our diffuser  and optics changes the story in important ways, and our transmission efficiency is down by a large  factor -- about 1%.  That gives our instrumental sensitivity:
+
+RAD:	2.5E-8 Ka  --   2.5E-3 Ka
+
+To convert that into  a _depth_ depends on a  lot of details, but as a very rough guide for the eye, we  can  use the Kaartvedt metric,
+
+E(z) = E(0) e^(-Kz)
+z = ln(E(0)/E(z))/K 
+
+At noon on a clear day, E(0) ~ 1E3 Ka
+In a mildly turbid sea , K ~ 0.05
+So we can detect light between:
+	zmax = ln(1E3/2.5E-8)/0.05 ~ 488m
+	zmin = ln(1E3/1E-3)/0.05   ~ 276m
+In a clear sea, K~0.025, both depths double.
+
+
