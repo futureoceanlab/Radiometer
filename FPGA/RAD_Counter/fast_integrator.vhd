@@ -1,7 +1,22 @@
 ----------------------------------------------------------------------------------
---
--- Description: Count rising edges, and output as a Gray count.
---
+--     MIT Future Ocean Lab
+----------------------------------------------------------------------------------
+-- Project:       FOL Radiometer
+-- Version:       Beebe
+-- Design:        RAD_Counter
+-- Substrate:     CMod A7 
+----------------------------------------------------------------------------------
+-- Module:        fast_integrator (Behavioral)
+-- Filename:      fast_integrator.vhd
+-- Created:       10/13/2019 11:43:09 AM
+-- Author:        Allan Adams (awa@mit.edu)
+----------------------------------------------------------------------------------
+-- Description:   Reimann-integrate area under signal curve
+-- 
+-- Dependencies: 
+-- 
+-- Issues:
+-- 
 ----------------------------------------------------------------------------------
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

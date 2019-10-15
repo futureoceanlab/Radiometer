@@ -1,7 +1,22 @@
 ----------------------------------------------------------------------------------
---
--- Description: Convert 4-bit gray code to binary
---
+--     MIT Future Ocean Lab
+----------------------------------------------------------------------------------
+-- Project:       FOL Radiometer
+-- Version:       Beebe
+-- Design:        RAD_Counter
+-- Substrate:     CMod A7 
+----------------------------------------------------------------------------------
+-- Module:        gray_to_bin_4 (Behavioral)
+-- Filename:      gray_to_bin_4.vhd
+-- Created:       10/13/2019 11:43:09 AM
+-- Author:        Allan Adams (awa@mit.edu)
+----------------------------------------------------------------------------------
+-- Description:   Convert 4-bit gray code to binary
+-- 
+-- Dependencies: 
+-- 
+-- Issues:
+-- 
 ----------------------------------------------------------------------------------
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -34,7 +49,8 @@ process(gray)
          when "1011" => binary <= "1101";
          when "1001" => binary <= "1110";
          when "1000" => binary <= "1111";
-         when others => report "unreachable" severity failure;
+--         when others => report "unreachable" severity failure;
+         when others => binary <= "0000";
       end case;
    end process;
 

@@ -1,10 +1,25 @@
----------------------------------------------------------------------------------- 
---  
--- Module Name:    fast_freq_counter - Behavioral  
+----------------------------------------------------------------------------------
+--     MIT Future Ocean Lab
+----------------------------------------------------------------------------------
+-- Project:       FOL Radiometer
+-- Version:       Beebe
+-- Design:        RAD_Counter
+-- Substrate:     CMod A7 
+----------------------------------------------------------------------------------
+-- Module:        RAD_Counter (Behavioral)
+-- Filename:      RAD_Counter.vhd
+-- Created:       10/13/2019 11:43:09 AM
+-- Author:        Allan Adams (awa@mit.edu)
+----------------------------------------------------------------------------------
+-- Description:   
+--
+-- Provenance:    Inspired by fast_freq_counter
 -- 
--- Description: A fast frequency counter, wiht USB output-- 
+-- Dependencies: 
 -- 
----------------------------------------------------------------------------------- 
+-- Issues:
+-- 
+----------------------------------------------------------------------------------
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 library unisim;
@@ -16,13 +31,14 @@ entity RAD_counter is
     );
   port (
     -- in
-    CLKg   : in  std_logic;
+    sysclk : in  std_logic;
     HIN    : in  std_logic;  -- Differential input -- will need to buffer
     DTOG   : in  std_logic                     := '0';  -- Select EDGES or CYCLES out via DATA
     Ns_SEL : in  std_logic_vector (2 downto 0) := "000";  -- External f_Sample
     --  out                                                  
     DATA   : out std_logic_vector (Nb-1 downto 0);      -- Accumulated Edges
-    PING   : out std_logic                     := '0'  -- CALL BOYS IN FOR DINNER
+    PING   : out std_logic                     := '0';  -- CALL BOYS IN FOR DINNER
+    T_ON   : out std_logic :='1'
     );
 end RAD_counter;
 
@@ -98,7 +114,7 @@ begin
 --              O  => hin);
 
   RadClock : rad_clock
-    port map (CLK => CLKg,
+    port map (CLK => sysclk,
               CLK_FAST => fc,
               CLK_SLOW => fo);
 

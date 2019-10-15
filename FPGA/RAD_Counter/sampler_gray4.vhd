@@ -1,7 +1,22 @@
 ----------------------------------------------------------------------------------
---
--- Description: Sample the graycode count and convert back to binary
---
+--     MIT Future Ocean Lab
+----------------------------------------------------------------------------------
+-- Project:       FOL Radiometer
+-- Version:       Beebe
+-- Design:        RAD_Counter
+-- Substrate:     CMod A7 
+----------------------------------------------------------------------------------
+-- Module:        sampler_gray4 (Behavioral)
+-- Filename:      sampler_gray4.vhd
+-- Created:       10/13/2019 11:43:09 AM
+-- Author:        Allan Adams (awa@mit.edu)
+----------------------------------------------------------------------------------
+-- Description:   Sample the graycode count and convert back to binar
+-- 
+-- Dependencies: 
+-- 
+-- Issues:
+-- 
 ----------------------------------------------------------------------------------
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -14,8 +29,8 @@ use UNISIM.VComponents.all;
 entity sampler_gray4 is
   Port (
     CLK    : in  STD_LOGIC;
-    GRAY   : in  STD_LOGIC_VECTOR (3 downto 0);
-    SAMPLE : out STD_LOGIC_VECTOR (3 downto 0)
+    GRAY   : in  STD_LOGIC_VECTOR (3 downto 0) := (others => '0');
+    SAMPLE : out STD_LOGIC_VECTOR (3 downto 0) := (others => '0')
     );
 end sampler_gray4;
 

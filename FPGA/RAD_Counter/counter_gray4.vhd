@@ -1,7 +1,22 @@
 ----------------------------------------------------------------------------------
---
--- Description: Count rising edges, and output as a Gray count.
---
+--     MIT Future Ocean Lab
+----------------------------------------------------------------------------------
+-- Project:       FOL Radiometer
+-- Version:       Beebe
+-- Design:        RAD_Counter
+-- Substrate:     CMod A7 
+----------------------------------------------------------------------------------
+-- Module:        counter_gray4 (Behavioral)
+-- Filename:      counter_gray4.vhd
+-- Created:       10/13/2019 11:43:09 AM
+-- Author:        Allan Adams (awa@mit.edu)
+----------------------------------------------------------------------------------
+-- Description:   Count rising edges, and output as a Gray count.
+-- 
+-- Dependencies: 
+-- 
+-- Issues:
+-- 
 ----------------------------------------------------------------------------------
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -15,7 +30,7 @@ entity counter_gray4 is
     );
   Port (
     VIN : in  STD_LOGIC; -- Data in
-    GRAY : out  STD_LOGIC_VECTOR (3 downto 0) -- Gray code out
+    GRAY : out  STD_LOGIC_VECTOR (3 downto 0)  := (others => '0') -- Gray code out
     );
 end counter_gray4;
 

@@ -1,6 +1,17 @@
 ----------------------------------------------------------------------------------
---
--- Use DCMs to generate a 450 MHz clock from the CMOD7 12 MHz clock
+--     MIT Future Ocean Lab
+----------------------------------------------------------------------------------
+-- Project:       FOL Radiometer
+-- Version:       Beebe
+-- Design:        RAD_Counter
+-- Substrate:     CMod A7 
+----------------------------------------------------------------------------------
+-- Module:        rad_clock (Behavioral)
+-- Filename:      rad_clock.vhd
+-- Created:       10/13/2019 11:43:09 AM
+-- Author:        Allan Adams (awa@mit.edu)
+----------------------------------------------------------------------------------
+-- Description:   Use DCMs to generate a 450 MHz clock from the CMOD7 12 MHz clock
 -- Given limitations of the MMCMs when driven by the 12MHz clock  on  the  Cmod A7, 
 -- this requires two pipelines MMCMs, first lifting 12 --> 250, then 250 --> 450.
 -- Cumulative jitter grows a little unsightly (of order 500ps on a 2.2ps signal!), 
@@ -8,18 +19,23 @@
 -- to 20ps rises and falls, this imprecision is still well in the noise. Phew.
 --
 -- For posterity, or more precisely my future self (to whom is he born if not me?),
--- here are the two MMCM parameters required:
+-- here are the two MMCM parameters required: 
 --
 --   M  = 62.500, D = 1.0  -->  VCO =  750 MHz
 --   D0 =  3.000           -->  f1  =  250 MHZ
 --
 --   M  = 20.250, D = 5.0  -->  VCO = 1012.5 MHz
---   D0 =  2.250           -->  f2  =  450 MHZ
+--   D0 =  2.250           -->  f2  =  450 MHZm
 --
 -- A mod-3 counter on the 12MHz clock then generate the required 4 MHz clock
 --
 -- Everything gets a suitable BUFG, FWIW
---
+-- 
+----------------------------------------------------------------------------------
+-- Dependencies: 
+-- 
+-- Issues:
+-- 
 ----------------------------------------------------------------------------------
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
@@ -39,8 +55,8 @@ end rad_clock;
 
 architecture Behavioral of rad_clock is
 
-  signal bf_CLK_250      : std_logic;
   signal in_CLK_250   : std_logic;
+  signal bf_CLK_250   : std_logic;
   signal in_CLK_450   : std_logic;
   signal in_CLK_4     : std_logic := '0';
   signal clkfb1       : std_logic;
@@ -192,7 +208,7 @@ begin
   BUFG_450 : BUFG
     port map (
       O => CLK_FAST,                    -- 1-bit output: Clock output
-      I => bf_CLK_250                     -- 1-bit input: Clock input
+      I => in_CLK_450                     -- 1-bit input: Clock input
       );
 
   BUFG_SLOW : BUFG
@@ -204,6 +220,14 @@ begin
   counter_process : process(CLK)
   begin
     if rising_edge(CLK) then
+      if counter = "10" then
+        counter     <= "00";
+        in_CLK_4 <= not in_CLK_4;
+      else
+        counter <= counter + 1;
+      end if;  -- counter = "10"
+    end if;  -- rising_edge(CLK)
+    if falling_edge(CLK) then
       if counter = "10" then
         counter     <= "00";
         in_CLK_4 <= not in_CLK_4;
