@@ -57,6 +57,12 @@ architecture Behavioral of RAD_counter is
           VOUT : out std_logic);
   end component;
 
+  component prescaler
+    generic (N : positive);
+    port (Test_Signal  : in  std_logic;
+          Click_Out : out  std_logic);
+  end component;
+
   component counter_gray4
     generic (N : positive);
     port (VIN  : in  std_logic;
@@ -90,6 +96,7 @@ architecture Behavioral of RAD_counter is
   end component;
 
   signal cin         : std_logic;
+  signal cin_ps      : std_logic;
   signal fc          : std_logic;
   signal fo          : std_logic;
   signal gray_edges  : std_logic_vector (3 downto 0);
@@ -123,14 +130,19 @@ begin
               CLK  => fc,
               VOUT => cin);
 
+  Prescale : prescaler
+    generic map (N => 3)
+    port map (Test_Signal => cin,
+              Click_Out => cin_ps);
+
   CountEdges : counter_gray4
     generic map (N => 4)
     port map (VIN  => hin,
               GRAY => gray_edges);
 
   CountCycles : counter_gray4
-    generic map (N => 7)                -- Need 3-bit prescaler!!
-    port map (VIN  => cin,
+    generic map (N => 4)              
+    port map (VIN  => cin_ps,
               GRAY => gray_cycles);
 
   SampleEdges : sampler_gray4
