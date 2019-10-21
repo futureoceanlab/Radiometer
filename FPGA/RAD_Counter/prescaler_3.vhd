@@ -8,10 +8,10 @@
 ----------------------------------------------------------------------------------
 -- Module:        Prescaler (Behavioral)
 -- Filename:      Prescaler.vhd
--- Created:       10/15/2019 10:37:09 PM
--- Author:        Allan Adams (awa@mit.edu)
+-- Created:       18/8/2019
+-- Author:        Allan Adams <awa@mit.edu>
 ----------------------------------------------------------------------------------
--- Description:   Prescale before sending to counter
+-- Description:   3-bit Prescaler
 -- 
 -- Dependencies: 
 -- 
@@ -21,32 +21,45 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
+--
+library unisim;
+use unisim.vcomponents.all;
+--
 
-entity prescaler is
-  generic (
-    N : positive := 3                   -- Total prescaling bits.
-    );
+entity prescaler_3 is
   port (
     Test_Signal : in  std_logic;        -- Data in
     Click_Out   : out std_logic := '0'  -- Gray code out
     );
-end prescaler;
+end prescaler_3;
 
 
-architecture Behavioral of prescaler is
-  signal count : unsigned (N-1 downto 0) := (others => '0');
-  signal max_c : unsigned (N-1 downto 0) := (others => '1');
+architecture Behavioral of prescaler_3 is
+
+  signal count : unsigned (2 downto 0) := (others => '0');
+  signal out_enable : std_logic := '0';
+
 begin
-  process(Test_Signal)
+
+  rising_process_3 : process(Test_Signal)
   begin
     if rising_edge(Test_Signal) then
-      if count = max_c then -- If counter maxed out, ping output
-        Click_Out <= '1';
-      end if; -- count =  "1...1"
-      count <= count + 1;  -- advance the counter
-    end if; -- rising_edge
-    if falling_edge(Test_Signal) then
-      Click_Out <= '0';
-    end if; -- falling edge
+      if count = "111" then             -- If counter maxed out, ping output
+        out_enable <= '1';
+      else
+        out_enable <= '0';
+      end if;  -- count =  "1...1"
+      count <= count + 1;               -- advance the counter
+    end if;  -- rising_edge
   end process;
+
+
+  Prescalar_BUFG : BUFGCE
+  port map(
+    O  => Click_Out,
+    CE => out_enable,
+    I  => Test_Signal
+    );
+
+
 end Behavioral;

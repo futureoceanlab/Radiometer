@@ -8,8 +8,8 @@
 ----------------------------------------------------------------------------------
 -- Module:        rad_clock (Behavioral)
 -- Filename:      rad_clock.vhd
--- Created:       10/13/2019 11:43:09 AM
--- Author:        Allan Adams (awa@mit.edu)
+-- Created:       18/8/2019
+-- Author:        Allan Adams <awa@mit.edu>
 ----------------------------------------------------------------------------------
 -- Description:   Use DCMs to generate a 450 MHz clock from the CMOD7 12 MHz clock
 -- Given limitations of the MMCMs when driven by the 12MHz clock  on  the  Cmod A7, 
@@ -46,19 +46,19 @@ use UNISIM.vcomponents.all;
 
 entity rad_clock is
   port (
-    CLK      : in  std_logic; --  12 MHz
-    CLK_FAST : out std_logic; -- 450 MHz
-    CLK_SLOW : out std_logic  --   4 MHz
+    CLK_IN       : in  std_logic; --  12 MHz
+    CLK_OUT_FAST : out std_logic; -- 450 MHz
+    CLK_OUT_SLOW : out std_logic  --   4 MHz
     );
 end rad_clock;
 
 
 architecture Behavioral of rad_clock is
 
-  signal in_CLK_250   : std_logic;
-  signal bf_CLK_250   : std_logic;
-  signal in_CLK_450   : std_logic;
-  signal in_CLK_4     : std_logic := '0';
+  signal CLK_250_raw  : std_logic := '0';
+  signal CLK_250_buf  : std_logic := '0';
+  signal CLK_450_raw  : std_logic := '0';
+  signal CLK_4_raw    : std_logic := '0';
   signal clkfb1       : std_logic;
   signal clkfb2       : std_logic;
   signal counter      : unsigned(1 downto 0) := (others => '0');
@@ -111,10 +111,10 @@ begin
       LOCKED => open,                   -- 1-bit output: LOCK
 
       -- Clock Inputs: 1-bit (each) input: Clock input
-      CLKIN1 => CLK,                 -- 1-bit input: Clock
+      CLKIN1 => CLK_IN,                 -- 1-bit input: Clock
 
       -- Clock Outputs: 1-bit (each) output: User configurable clock outputs
-      CLKOUT0   => in_CLK_250,         -- 1-bit output: CLKOUT0
+      CLKOUT0   => CLK_250_raw,         -- 1-bit output: CLKOUT0
       CLKOUT0B  => open,                -- 1-bit output: Inverted CLKOUT0
       CLKOUT1   => open,                -- 1-bit output: CLKOUT1
       CLKOUT1B  => open,                -- 1-bit output: Inverted CLKOUT1
@@ -134,8 +134,8 @@ begin
 
   BUFG_250 : BUFG
     port map (
-      O => bf_CLK_250,                    -- 1-bit output: Clock output
-      I => in_CLK_250                  -- 1-bit input: Clock input
+      O => CLK_250_buf,                    -- 1-bit output: Clock output
+      I => CLK_250_raw                  -- 1-bit input: Clock input
       );
 
 
@@ -184,10 +184,10 @@ begin
       LOCKED => open,                   -- 1-bit output: LOCK
 
       -- Clock Inputs: 1-bit (each) input: Clock input
-      CLKIN1 => bf_CLK_250,                 -- 1-bit input: Clock
+      CLKIN1 => CLK_250_buf,                 -- 1-bit input: Clock
 
       -- Clock Outputs: 1-bit (each) output: User configurable clock outputs
-      CLKOUT0   => in_CLK_450,         -- 1-bit output: CLKOUT0
+      CLKOUT0   => CLK_450_raw,         -- 1-bit output: CLKOUT0
       CLKOUT0B  => open,                -- 1-bit output: Inverted CLKOUT0
       CLKOUT1   => open,                -- 1-bit output: CLKOUT1
       CLKOUT1B  => open,                -- 1-bit output: Inverted CLKOUT1
@@ -207,30 +207,30 @@ begin
 
   BUFG_450 : BUFG
     port map (
-      O => CLK_FAST,                    -- 1-bit output: Clock output
-      I => in_CLK_450                     -- 1-bit input: Clock input
+      I => CLK_450_RAW,                     -- 1-bit input: Clock input
+      O => CLK_OUT_FAST                    -- 1-bit output: Clock output
       );
 
   BUFG_SLOW : BUFG
     port map (
-      O => CLK_SLOW,                    -- 1-bit output: Clock output
-      I => in_CLK_4                  -- 1-bit input: Clock input
+      O => CLK_OUT_SLOW,                    -- 1-bit output: Clock output
+      I => CLK_4_RAW                  -- 1-bit input: Clock input
       );
 
-  counter_process : process(CLK)
+  counter_process : process(CLK_IN)
   begin
-    if rising_edge(CLK) then
-      if counter = "10" then
+    if rising_edge(CLK_IN) then
+      if (counter = "10") then
         counter     <= "00";
-        in_CLK_4 <= not in_CLK_4;
+        CLK_4_RAW <= not CLK_4_RAW;
       else
         counter <= counter + 1;
       end if;  -- counter = "10"
     end if;  -- rising_edge(CLK)
-    if falling_edge(CLK) then
-      if counter = "10" then
+    if falling_edge(CLK_IN) then
+      if (counter = "10") then
         counter     <= "00";
-        in_CLK_4 <= not in_CLK_4;
+        CLK_4_RAW <= not CLK_4_RAW;
       else
         counter <= counter + 1;
       end if;  -- counter = "10"

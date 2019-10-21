@@ -8,10 +8,13 @@
 ----------------------------------------------------------------------------------
 -- Module:        sampler_gray4 (Behavioral)
 -- Filename:      sampler_gray4.vhd
--- Created:       10/13/2019 11:43:09 AM
--- Author:        Allan Adams (awa@mit.edu)
+-- Created:       18/8/2019
+-- Author:        Allan Adams <awa@mit.edu>
 ----------------------------------------------------------------------------------
--- Description:   Sample the graycode count and convert back to binar
+-- Based on fast_freq_counter by Mike Field <hamster@snap.net.nz>
+----------------------------------------------------------------------------------
+-- Description:   Sample the graycode count and convert back to binary,
+--                synchronizing to CLK via a 4-element FIFO pipe.
 -- 
 -- Dependencies: 
 -- 
@@ -19,35 +22,35 @@
 -- 
 ----------------------------------------------------------------------------------
 library IEEE;
-use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.NUMERIC_STD.ALL;
+use IEEE.STD_LOGIC_1164.all;
+use IEEE.NUMERIC_STD.all;
 
 library UNISIM;
 use UNISIM.VComponents.all;
 
 
 entity sampler_gray4 is
-  Port (
-    CLK    : in  STD_LOGIC;
-    GRAY   : in  STD_LOGIC_VECTOR (3 downto 0) := (others => '0');
-    SAMPLE : out STD_LOGIC_VECTOR (3 downto 0) := (others => '0')
+  port (
+    CLK    : in  std_logic;
+    GRAY   : in  std_logic_vector (3 downto 0) := (others => '0');
+    SAMPLE : out std_logic_vector (3 downto 0) := (others => '0')
     );
 end sampler_gray4;
 
 
 architecture Behavioral of sampler_gray4 is
   signal samples : std_logic_vector(15 downto 0) := (others => '0');
-    --  FIFO stack of four 4-bit gray samples. This allows registers from the 
-    --  fast Gray counter to settle down before tying them to the clock.
-  signal sample4  : std_logic_vector(3 downto 0); -- 4th in stack (bin)
-  signal sample3  : std_logic_vector(3 downto 0); --  3rd in stack (bin)
-  
-  COMPONENT gray_to_bin_4  -- External component translating gray5 to bin5 
-    PORT(
-      gray   : in std_logic_vector(3 downto 0);          
+  --  FIFO stack of four 4-bit gray samples. This allows registers from the 
+  --  fast Gray counter to settle down before tying them to the clock.
+  signal sample4 : std_logic_vector(3 downto 0);  -- 4th in stack (bin)
+  signal sample3 : std_logic_vector(3 downto 0);  --  3rd in stack (bin)
+
+  component gray_to_bin_4  -- External component translating gray5 to bin5 
+    port(
+      gray   : in  std_logic_vector(3 downto 0);
       binary : out std_logic_vector(3 downto 0)
       );
-  END COMPONENT;
+  end component;
 
 begin
 

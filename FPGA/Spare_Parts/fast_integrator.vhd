@@ -24,14 +24,22 @@ use IEEE.NUMERIC_STD.ALL;
 
 entity fast_integrator is
   Port (
-    VIN  : in  STD_LOGIC; -- Logic Level in
-    CLK  : in  STD_LOGIC; -- Clock (fast) in
-    VOUT : out STD_LOGIC -- Logic Level Out
+    CLK_FAST : in  STD_LOGIC; -- Logic Level in
+    SIG_IN   : in  STD_LOGIC; -- Clock (fast) in
+    SIG_FAST : out STD_LOGIC -- Logic Level Out
     );
 end fast_integrator;
 
 
 architecture Behavioral of fast_integrator is
 begin
-  VOUT <= VIN and CLK; 
+  process(CLK_FAST)
+  begin
+    if rising_edge(CLK_FAST) then
+      SIG_FAST <= SIG_IN;
+    end if;
+    if falling_edge(CLK_FAST) then
+      SIG_FAST <= '0';
+    end if;
+  end process;
 end Behavioral;
