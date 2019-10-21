@@ -1,9 +1,10 @@
 -- Copyright 1986-2019 Xilinx, Inc. All Rights Reserved.
 -- --------------------------------------------------------------------------------
 -- Tool Version: Vivado v.2019.1 (win64) Build 2552052 Fri May 24 14:49:42 MDT 2019
--- Date        : Sat Oct 19 22:03:28 2019
+-- Date        : Sun Oct 20 20:46:22 2019
 -- Host        : SOLIDWORKS-VM running 64-bit major release  (build 9200)
--- Command     : write_vhdl -force -mode funcsim z:/FPGA/RAD_Counter/CLK_250_450/CLK_250_450_sim_netlist.vhdl
+-- Command     : write_vhdl -force -mode funcsim -rename_top CLK_250_450 -prefix
+--               CLK_250_450_ CLK_250_450_sim_netlist.vhdl
 -- Design      : CLK_250_450
 -- Purpose     : This VHDL netlist is a functional simulation representation of the design and should not be modified or
 --               synthesized. This netlist cannot be used for SDF annotated simulation.
@@ -18,8 +19,6 @@ entity CLK_250_450_CLK_250_450_clk_wiz is
     clk_450 : out STD_LOGIC;
     clk_250 : in STD_LOGIC
   );
-  attribute ORIG_REF_NAME : string;
-  attribute ORIG_REF_NAME of CLK_250_450_CLK_250_450_clk_wiz : entity is "CLK_250_450_clk_wiz";
 end CLK_250_450_CLK_250_450_clk_wiz;
 
 architecture STRUCTURE of CLK_250_450_CLK_250_450_clk_wiz is
@@ -56,7 +55,7 @@ architecture STRUCTURE of CLK_250_450_CLK_250_450_clk_wiz is
   attribute BOX_TYPE of clkout1_buf : label is "PRIMITIVE";
   attribute BOX_TYPE of mmcm_adv_inst : label is "PRIMITIVE";
 begin
-clkf_buf: unisim.vcomponents.BUFG
+clkf_buf: unisim.vcomponents.BUFH
      port map (
       I => clkfbout_CLK_250_450,
       O => clkfbout_buf_CLK_250_450
@@ -69,7 +68,7 @@ clkin1_ibufg: unisim.vcomponents.IBUF
       I => clk_250,
       O => clk_250_CLK_250_450
     );
-clkout1_buf: unisim.vcomponents.BUFG
+clkout1_buf: unisim.vcomponents.BUFH
      port map (
       I => clk_450_CLK_250_450,
       O => clk_450

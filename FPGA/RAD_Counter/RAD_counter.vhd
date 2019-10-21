@@ -103,7 +103,8 @@ architecture Behavioral of RAD_counter is
 
   component output_mux
     generic (Nb : positive);
-    port (TOG    : in  std_logic;
+    port (CLK    : in  std_logic;      -- 0 for DATA_A, 1 for DATA_B
+          TOG    : in  std_logic;
           DATA_A : in  std_logic_vector (Nb-1 downto 0);
           DATA_B : in  std_logic_vector (Nb-1 downto 0);
           DATA_O : out std_logic_vector (Nb-1 downto 0));
@@ -128,10 +129,15 @@ begin
               CLK_OUT_FAST => clk_fast,
               CLK_OUT_SLOW => clk_slow);
 
+  ClockifyHam : clockify
+    port map (CLK_FAST   => clk_fast, 
+              SIG_IN     => HAM_IN,
+              CLK_SIG    => clk_ham);
+
   Subsample_HAM : subsample
-    port map ( CLK_FAST => clk_fast,
-               SIG_IN   => HAM_IN,
-               SIG_FAST => clk_cycles);
+    port map (CLK_FAST => clk_fast,
+              SIG_IN   => HAM_IN,
+              SIG_FAST => clk_cycles);
 
   PrescaleCycles : prescaler_3
     port map (Test_Signal => clk_cycles,
@@ -142,13 +148,7 @@ begin
               CLK_IN     => clk_slow,
               SAMPLE_OUT => bin_cycles);
 
-  ClockifyHam : clockify
-    port map (CLK_FAST   => clk_fast, 
-              SIG_IN     => HAM_IN,
-              CLK_SIG    => clk_ham);
-
   CountEdges : fast_counter
---    port map (SIGNAL_IN  => HAM_IN,
     port map (SIGNAL_IN  => clk_ham,
               CLK_IN     => clk_slow,
               SAMPLE_OUT => bin_edges);
@@ -166,7 +166,8 @@ begin
 
   OutMux : output_mux
     generic map (Nb => Nb)
-    port map (DATA_A => edge_count,
+    port map (CLK    => clk_slow,
+              DATA_A => edge_count,
               DATA_B => cycle_count,
               TOG    => DTOG_IN,
               DATA_O => DATA_OUT);

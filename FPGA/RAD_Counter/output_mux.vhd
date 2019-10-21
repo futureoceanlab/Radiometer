@@ -28,6 +28,7 @@ entity output_mux is
     );
   port (
     -- IN
+    CLK    : in  std_logic := '0';      -- 0 for DATA_A, 1 for DATA_B
     TOG    : in  std_logic := '0';      -- 0 for DATA_A, 1 for DATA_B
     DATA_A : in  std_logic_vector (Nb-1 downto 0);
     DATA_B : in  std_logic_vector (Nb-1 downto 0);
@@ -39,6 +40,16 @@ end output_mux;
 
 architecture Behavioral of output_mux is
 begin
-  DATA_O <= DATA_A when (TOG = '0') else DATA_B;
+--  DATA_O <= DATA_A when (TOG = '0') else DATA_B;
+  process(CLK)
+    begin
+      if rising_edge(CLK) then
+        case TOG is
+          when '0' => DATA_O <= DATA_A;
+          when '1' => DATA_O <= DATA_B;
+          when others => report "unreachable" severity failure;
+        end case;
+      end if;
+    end process;
 end Behavioral;
 

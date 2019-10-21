@@ -1,9 +1,10 @@
 // Copyright 1986-2019 Xilinx, Inc. All Rights Reserved.
 // --------------------------------------------------------------------------------
 // Tool Version: Vivado v.2019.1 (win64) Build 2552052 Fri May 24 14:49:42 MDT 2019
-// Date        : Sat Oct 19 22:03:28 2019
+// Date        : Sun Oct 20 20:46:22 2019
 // Host        : SOLIDWORKS-VM running 64-bit major release  (build 9200)
-// Command     : write_verilog -force -mode funcsim z:/FPGA/RAD_Counter/CLK_250_450/CLK_250_450_sim_netlist.v
+// Command     : write_verilog -force -mode funcsim -rename_top CLK_250_450 -prefix
+//               CLK_250_450_ CLK_250_450_sim_netlist.v
 // Design      : CLK_250_450
 // Purpose     : This verilog netlist is a functional simulation representation of the design and should not be modified
 //               or synthesized. This netlist cannot be used for SDF annotated simulation.
@@ -26,7 +27,6 @@ module CLK_250_450
         .clk_450(clk_450));
 endmodule
 
-(* ORIG_REF_NAME = "CLK_250_450_clk_wiz" *) 
 module CLK_250_450_CLK_250_450_clk_wiz
    (clk_450,
     clk_250);
@@ -58,7 +58,7 @@ module CLK_250_450_CLK_250_450_clk_wiz
   wire [15:0]NLW_mmcm_adv_inst_DO_UNCONNECTED;
 
   (* BOX_TYPE = "PRIMITIVE" *) 
-  BUFG clkf_buf
+  BUFH clkf_buf
        (.I(clkfbout_CLK_250_450),
         .O(clkfbout_buf_CLK_250_450));
   (* BOX_TYPE = "PRIMITIVE" *) 
@@ -71,7 +71,7 @@ module CLK_250_450_CLK_250_450_clk_wiz
        (.I(clk_250),
         .O(clk_250_CLK_250_450));
   (* BOX_TYPE = "PRIMITIVE" *) 
-  BUFG clkout1_buf
+  BUFH clkout1_buf
        (.I(clk_450_CLK_250_450),
         .O(clk_450));
   (* BOX_TYPE = "PRIMITIVE" *) 

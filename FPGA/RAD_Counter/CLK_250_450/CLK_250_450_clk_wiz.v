@@ -179,7 +179,7 @@ wire clk_in2_CLK_250_450;
  // Output buffering
   //-----------------------------------
 
-  BUFG clkf_buf
+  BUFH clkf_buf
    (.O (clkfbout_buf_CLK_250_450),
     .I (clkfbout_CLK_250_450));
 
@@ -188,7 +188,7 @@ wire clk_in2_CLK_250_450;
 
 
 
-  BUFG clkout1_buf
+  BUFH clkout1_buf
    (.O   (clk_450),
     .I   (clk_450_CLK_250_450));
 

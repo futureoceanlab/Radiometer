@@ -55,6 +55,7 @@ begin
 
 
   Prescalar_BUFG : BUFGCE
+--  Prescalar_BUFG : BUFMRCE
   port map(
     O  => Click_Out,
     CE => out_enable,

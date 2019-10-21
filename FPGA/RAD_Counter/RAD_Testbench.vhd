@@ -84,10 +84,10 @@ begin
     process
         variable seed1, seed2: positive;               -- seed values for random generator
         variable rand: real;   -- random real-number value in range 0 to 1.0  
-        variable range_of_rand : real := 80.0;    -- the range of random values created will be 0 to +1000.
+        variable range_of_rand : real := 79.0;    -- the range of random values created will be 0 to +79.
     begin
         uniform(seed1, seed2, rand);   -- generate random number
-        rand_delay_tb <= integer(20.0 + rand*range_of_rand);  -- rescale to 0..1000, convert integer part 
+        rand_delay_tb <= integer(20.0 + (80.0/(1.0+(rand*range_of_rand))));  -- rescale to 0..1000, convert integer part 
         wait for 20 ns;
     end process;
 
