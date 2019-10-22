@@ -55,17 +55,21 @@ end rad_clock_IP;
 
 architecture Behavioral of rad_clock_IP is
 
-  component CLK_12_250
-    port (clk_12  : in  std_logic;
-          clk_250 : out std_logic);
+  component clk_12_250
+    port (clk_12      : in  std_logic;
+          clk_250     : out std_logic;
+          mmcm_locked : out std_logic);
   end component;
 
   component clk_250_450
-    port (clk_250 : in  std_logic;
-          clk_450 : out std_logic);
+    port (clk_250    : in  std_logic;
+          mmcm_reset : in  std_logic;
+          clk_450    : out std_logic);
   end component;
 
   signal clk_250_wire : std_logic            := '0';
+  signal enable_450   : std_logic            := '0';
+  signal not_en_450   : std_logic            := '0';
   signal clk_4_raw    : std_logic            := '0';
   signal count_rise   : unsigned (1 downto 0) := (others => '0');
   signal count_fall   : unsigned (1 downto 0) := (others => '0');
@@ -75,16 +79,20 @@ architecture Behavioral of rad_clock_IP is
 
 begin
 
-  make_clk_250 : CLK_12_250
+  make_clk_250 : clk_12_250
     port map (
       clk_12  => CLK_IN,
-      clk_250 => clk_250_wire
+      clk_250 => clk_250_wire,
+      mmcm_locked => enable_450
       );
+
+  not_en_450 <= not enable_450;
 
   make_clk_450 : clk_250_450
     port map (
-      clk_250 => clk_250_wire,
-      clk_450 => CLK_OUT_FAST
+      clk_250    => clk_250_wire,
+      mmcm_reset => not_en_450,
+      clk_450    => CLK_OUT_FAST
       );
 
   BUFG_SLOW : BUFG
