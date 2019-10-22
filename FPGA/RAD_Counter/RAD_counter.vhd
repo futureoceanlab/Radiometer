@@ -15,7 +15,7 @@
 ----------------------------------------------------------------------------------
 -- Description:   This project counts pulses from a fast source and estimates
 --                the area under the curve.  The input signal is a random train
---                of 20+ns pulses (<=40MHz).  We need to count these pulses and
+--                of 20+ns pulses (<50MHz).  We need to count these pulses and
 --                also estimate what fraction of the time the signal is high.
 --                To count pulses we use Mike Field's fast_freq_counter, which
 --                uses a Gray-coded counter to handle the fast input, then
@@ -48,7 +48,7 @@ entity RAD_counter is
     sysclk    : in  std_logic;          -- Cmod A7 system clock -- 12MHz
     HAM_IN    : in  std_logic;          -- Input Signal
     DTOG_IN   : in  std_logic                     := '0';  -- Select EDGES or CYCLES out via DATA
-    NS_SEL_IN : in  std_logic_vector (2 downto 0) := "000";  -- External f_Sample
+    NS_SEL_IN : in  std_logic_vector (2 downto 0) := "000";  -- External Number of 16-bit samples per sec
     --  out                                                  
     DATA_OUT  : out std_logic_vector (Nb-1 downto 0);      -- Accumulated Edges
     PING_OUT  : out std_logic                     := '0';  -- CALL BOYS IN FOR DINNER
@@ -59,13 +59,12 @@ end RAD_counter;
 
 architecture Behavioral of RAD_counter is
 
-  component rad_clock_IP
+  component rad_clock
     port (CLK_IN       : in  std_logic;
-          CLK_OUT_FAST : out std_logic;
-          CLK_OUT_SLOW : out std_logic);
+          CLK_OUT_FAST : out std_logic);
   end component;
 
-  Component subsample
+  component subsample
     Port ( Clk_FAST : in  STD_LOGIC; -- Logic Level in
            SIG_IN   : in  STD_LOGIC; -- Clock (fast) in
            SIG_FAST : out STD_LOGIC); -- Logic Level Out
@@ -110,11 +109,11 @@ architecture Behavioral of RAD_counter is
           DATA_O : out std_logic_vector (Nb-1 downto 0));
   end component;
 
+  signal clk_sample  : std_logic;
   signal clk_cycles  : std_logic;
   signal cycles_mod8 : std_logic;
   signal clk_ham     : std_logic;
   signal clk_fast    : std_logic;
-  signal clk_slow    : std_logic;
   signal bin_edges   : std_logic_vector (3 downto 0);
   signal bin_cycles  : std_logic_vector (3 downto 0);
   signal edge_count  : std_logic_vector (Nb-1 downto 0);
@@ -124,10 +123,15 @@ begin
 
 ------------------------------
 
-  RadClock : rad_clock_IP
-    port map (CLK_IN       => sysclk,
-              CLK_OUT_FAST => clk_fast,
-              CLK_OUT_SLOW => clk_slow);
+  BUFG_sysclk : BUFG
+  port map (
+    O => clk_sample,
+    I => sysclk
+    );
+
+  RadClock : rad_clock
+    port map (CLK_IN       => clk_sample,
+              CLK_OUT_FAST => clk_fast);
 
   ClockifyHam : clockify
     port map (CLK_FAST   => clk_fast, 
@@ -145,28 +149,28 @@ begin
 
   CountCycles : fast_counter
     port map (SIGNAL_IN  => cycles_mod8,
-              CLK_IN     => clk_slow,
+              CLK_IN     => clk_sample,
               SAMPLE_OUT => bin_cycles);
 
   CountEdges : fast_counter
     port map (SIGNAL_IN  => clk_ham,
-              CLK_IN     => clk_slow,
+              CLK_IN     => clk_sample,
               SAMPLE_OUT => bin_edges);
 
   Totals : accumulator
     generic map (Nb => Nb,
                  Ng => 4)
-    port map (CLK      => clk_slow,
+    port map (CLK        => clk_sample,
               NEW_EDGES  => bin_edges,
               NEW_CYCLES => bin_cycles,
-              NS_SEL   => NS_SEL_IN,
-              EDGES    => edge_count,
-              CYCLES   => cycle_count,
-              PING     => PING_OUT);
+              NS_SEL     => NS_SEL_IN,
+              EDGES      => edge_count,
+              CYCLES     => cycle_count,
+              PING       => PING_OUT);
 
   OutMux : output_mux
     generic map (Nb => Nb)
-    port map (CLK    => clk_slow,
+    port map (CLK    => clk_sample,
               DATA_A => edge_count,
               DATA_B => cycle_count,
               TOG    => DTOG_IN,
