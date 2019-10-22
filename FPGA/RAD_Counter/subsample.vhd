@@ -40,8 +40,8 @@ architecture Behavioral of subsample is
 
 begin 
 
---  Integrator_BUFG : BUFGCE
-  Integrator_BUFH : BUFHCE
+  Integrator_BUFG : BUFGCE
+--  Integrator_BUFH : BUFHCE
   port map(
   O  => SIG_FAST,
   CE => SIG_IN,

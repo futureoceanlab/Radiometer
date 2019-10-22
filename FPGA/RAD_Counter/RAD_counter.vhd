@@ -123,6 +123,14 @@ begin
 
 ------------------------------
 
+--  BUFG_sysclk : BUFG
+--  port map (
+--    O => clk_sample,
+--    I => sysclk
+--    );
+
+   clk_sample <= sysclk;
+
   RadClock : rad_clock
     port map (CLK_IN       => clk_sample,
               CLK_OUT_FAST => clk_fast);
