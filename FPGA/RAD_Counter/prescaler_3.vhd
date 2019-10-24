@@ -46,6 +46,7 @@ begin
     if rising_edge(Test_Signal) then
       if count = "111" then             -- If counter maxed out, ping output
         out_enable <= '1';
+--        out_enable <= '1' after 400ps;
       else
         out_enable <= '0';
       end if;  -- count =  "1...1"

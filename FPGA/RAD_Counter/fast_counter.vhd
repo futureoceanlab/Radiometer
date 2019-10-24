@@ -32,14 +32,16 @@ entity fast_counter is
   port (
     SIGNAL_IN  : in  std_logic;
     CLK_IN     : in  std_logic;
-    SAMPLE_OUT : out std_logic_vector (3 downto 0) := (others => '0')
+    SAMPLE_OUT : out std_logic_vector (3 downto 0)
     );
 end fast_counter;
 
 
 architecture Behavioral of fast_counter is
 
-  signal gray_wire : std_logic_vector(3 downto 0);
+  attribute ASYNC_REG : string;
+  signal gray_wire : std_logic_vector (3 downto 0) := (others => '0');
+  attribute ASYNC_REG of gray_wire : signal is "true";
 
   component counter_gray4
     generic (N : positive);

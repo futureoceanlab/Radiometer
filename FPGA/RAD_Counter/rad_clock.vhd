@@ -56,6 +56,7 @@ architecture Behavioral of rad_clock is
   signal clkfb2      : std_logic;
   signal clk_250_raw : std_logic;
   signal clk_250_buf : std_logic := '0';
+  signal clk_450_raw : std_logic;
   signal locked_250  : std_logic := '0';
   signal enable_450  : std_logic := '0';
 
@@ -64,21 +65,23 @@ begin
 
   enable_450 <= not locked_250;
 
+  -- M   62.500  -->  VCO = 750
+  -- Dc  3  -->  fc = 250
 
   MMCME2_BASE_12_250 : MMCME2_BASE
     generic map (
       BANDWIDTH          => "OPTIMIZED",  -- Jitter programming (OPTIMIZED, HIGH, LOW)
       CLKFBOUT_MULT_F    => 62.5,  -- Multiply value for all CLKOUT (2.000-64.000).
       CLKFBOUT_PHASE     => 0.0,  -- Phase offset in degrees of CLKFB (-360.000-360.000).
-      CLKIN1_PERIOD      => 83.34,  -- Input clock period in ns to ps resolution (i.e. 33.333 is 30 MHz).
+      CLKIN1_PERIOD      => 83.333,  -- Input clock period in ns to ps resolution (i.e. 33.333 is 30 MHz).
       -- CLKOUT0_DIVIDE - CLKOUT6_DIVIDE: Divide amount for each CLKOUT (1-128)
+      CLKOUT0_DIVIDE_F   => 3.000,  -- Divide amount for CLKOUT0 (1.000-128.000).
       CLKOUT1_DIVIDE     => 1,
       CLKOUT2_DIVIDE     => 1,
       CLKOUT3_DIVIDE     => 1,
       CLKOUT4_DIVIDE     => 1,
       CLKOUT5_DIVIDE     => 1,
       CLKOUT6_DIVIDE     => 1,
-      CLKOUT0_DIVIDE_F   => 5.0,  -- Divide amount for CLKOUT0 (1.000-128.000).
       -- CLKOUT0_DUTY_CYCLE - CLKOUT6_DUTY_CYCLE: Duty cycle for each CLKOUT (0.01-0.99).
       CLKOUT0_DUTY_CYCLE => 0.5,
       CLKOUT1_DUTY_CYCLE => 0.5,
@@ -129,25 +132,28 @@ begin
 
   BUFG_250 : BUFG
     port map (
+--      CE => '1',
+--      CLR => '0',
       O => clk_250_buf,                 -- 1-bit output: Clock output
       I => clk_250_raw                  -- 1-bit input: Clock input
       );
 
+--clk_250_buf <= clk_250_raw;
 
   MMCME2_BASE_250_450 : MMCME2_BASE
     generic map (
       BANDWIDTH          => "OPTIMIZED",  -- Jitter programming (OPTIMIZED, HIGH, LOW)
-      CLKFBOUT_MULT_F    => 4.5,  -- Multiply value for all CLKOUT (2.000-64.000).
+      CLKFBOUT_MULT_F    => 20.250,  -- Multiply value for all CLKOUT (2.000-64.000).
       CLKFBOUT_PHASE     => 0.0,  -- Phase offset in degrees of CLKFB (-360.000-360.000).
-      CLKIN1_PERIOD      => 4.0,  -- Input clock period in ns to ps resolution (i.e. 33.333 is 30 MHz).
+      CLKIN1_PERIOD      => 4.000,  -- Input clock period in ns to ps resolution (i.e. 33.333 is 30 MHz).
       -- CLKOUT0_DIVIDE - CLKOUT6_DIVIDE: Divide amount for each CLKOUT (1-128)
+      CLKOUT0_DIVIDE_F   => 2.25,  -- Divide amount for CLKOUT0 (1.000-128.000).
       CLKOUT1_DIVIDE     => 1,
       CLKOUT2_DIVIDE     => 1,
       CLKOUT3_DIVIDE     => 1,
       CLKOUT4_DIVIDE     => 1,
       CLKOUT5_DIVIDE     => 1,
       CLKOUT6_DIVIDE     => 1,
-      CLKOUT0_DIVIDE_F   => 2.5,  -- Divide amount for CLKOUT0 (1.000-128.000).
       -- CLKOUT0_DUTY_CYCLE - CLKOUT6_DUTY_CYCLE: Duty cycle for each CLKOUT (0.01-0.99).
       CLKOUT0_DUTY_CYCLE => 0.5,
       CLKOUT1_DUTY_CYCLE => 0.5,
@@ -165,13 +171,13 @@ begin
       CLKOUT5_PHASE      => 0.0,
       CLKOUT6_PHASE      => 0.0,
       CLKOUT4_CASCADE    => false,  -- Cascade CLKOUT4 counter with CLKOUT6 (FALSE, TRUE)
-      DIVCLK_DIVIDE      => 1,          -- Master division value (1-106)
+      DIVCLK_DIVIDE      => 5,          -- Master division value (1-106)
       REF_JITTER1        => 0.0,  -- Reference input jitter in UI (0.000-0.999).
       STARTUP_WAIT       => false  -- Delays DONE until MMCM is locked (FALSE, TRUE)
       )
     port map (
       -- Clock Outputs: 1-bit (each) output: User configurable clock outputs
-      CLKOUT0   => CLK_OUT_FAST,
+      CLKOUT0   => clk_450_raw,
       CLKOUT0B  => open,
       CLKOUT1   => open,
       CLKOUT1B  => open,
@@ -196,6 +202,15 @@ begin
       CLKFBIN   => clkfb2
       );
 
+
+--    BUFG_450 : BUFG
+--    port map (
+--      I => clk_450_raw,                     -- 1-bit input: Clock input
+--      O => CLK_OUT_FAST                    -- 1-bit output: Clock output
+--      );
+
+CLK_OUT_FAST <= clk_450_raw;
+  
 end Behavioral;
 
 

@@ -129,7 +129,7 @@ begin
 --    I => sysclk
 --    );
 
-   clk_sample <= sysclk;
+  clk_sample <= sysclk;
 
   RadClock : rad_clock
     port map (CLK_IN       => clk_sample,

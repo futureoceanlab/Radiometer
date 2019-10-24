@@ -98,6 +98,7 @@ begin
 --
 --  HIN_tb    <= not HIN_tb    after 20ns;
 --
+
   HIN_tb <= not HIN_tb after rand_delay_tb * 1 ns;
 
   DTOG_tb   <= not DTOG_tb   after 500000ns;   -- 0.5ms

@@ -44,6 +44,7 @@ architecture Behavioral of clockify is
 begin
 
   SigBuf_BUFG : BUFGCE
+--  SigBuf_BUFH : BUFHCE
     port map(
       O  => CLK_SIG,
       CE => sig_enable,
