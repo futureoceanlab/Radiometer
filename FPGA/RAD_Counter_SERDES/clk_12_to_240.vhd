@@ -5,8 +5,11 @@ library UNISIM;
 use UNISIM.VComponents.all;
 
 entity clk_12_to_240 is
-    Port ( clk_12 : in STD_LOGIC;
-           clk_240 : out STD_LOGIC);
+    Port ( clk_12      : in STD_LOGIC;
+           clk_240     : out STD_LOGIC;
+           clk_240b    : out STD_LOGIC;
+           clk_240_90  : out STD_LOGIC;
+           clk_240_90b : out STD_LOGIC);
 end clk_12_to_240;
 
 architecture Behavioral of clk_12_to_240 is
@@ -21,7 +24,7 @@ generic map (
   CLKFBOUT_PHASE => 0.0,     -- Phase offset in degrees of CLKFB (-360.000-360.000).
   CLKIN1_PERIOD => 83.333,    -- Input clock period in ns to ps resolution (i.e. 33.333 is 30 MHz).
   -- CLKOUT0_DIVIDE - CLKOUT6_DIVIDE: Divide amount for each CLKOUT (1-128)
-  CLKOUT1_DIVIDE => 1,
+  CLKOUT1_DIVIDE => 3,
   CLKOUT2_DIVIDE => 1,
   CLKOUT3_DIVIDE => 1,
   CLKOUT4_DIVIDE => 1,
@@ -38,7 +41,7 @@ generic map (
   CLKOUT6_DUTY_CYCLE => 0.5,
   -- CLKOUT0_PHASE - CLKOUT6_PHASE: Phase offset for each CLKOUT (-360.000-360.000).
   CLKOUT0_PHASE => 0.0,
-  CLKOUT1_PHASE => 0.0,
+  CLKOUT1_PHASE => 90.0,
   CLKOUT2_PHASE => 0.0,
   CLKOUT3_PHASE => 0.0,
   CLKOUT4_PHASE => 0.0,
@@ -52,9 +55,9 @@ generic map (
 port map (
   -- Clock Outputs: 1-bit (each) output: User configurable clock outputs
   CLKOUT0  => clk_240,
-  CLKOUT0B => open,
-  CLKOUT1  => open,
-  CLKOUT1B => open,
+  CLKOUT0B => clk_240b,
+  CLKOUT1  => clk_240_90,
+  CLKOUT1B => clk_240_90b,
   CLKOUT2  => open,
   CLKOUT2B => open,
   CLKOUT3  => open,

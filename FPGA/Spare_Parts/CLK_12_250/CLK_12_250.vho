@@ -1,5 +1,6 @@
 
--- (c) Copyright 2009 - 2013 Xilinx, Inc. All rights reserved.
+-- 
+-- (c) Copyright 2008 - 2013 Xilinx, Inc. All rights reserved.
 -- 
 -- This file contains confidential and proprietary information
 -- of Xilinx, Inc. and is protected under U.S. and
@@ -44,48 +45,44 @@
 -- 
 -- THIS COPYRIGHT NOTICE AND DISCLAIMER MUST BE RETAINED AS
 -- PART OF THIS FILE AT ALL TIMES.
+-- 
+------------------------------------------------------------------------------
+-- User entered comments
+------------------------------------------------------------------------------
+-- None
+--
+------------------------------------------------------------------------------
+--  Output     Output      Phase    Duty Cycle   Pk-to-Pk     Phase
+--   Clock     Freq (MHz)  (degrees)    (%)     Jitter (ps)  Error (ps)
+------------------------------------------------------------------------------
+-- _clk_250___250.000______0.000______50.0______430.512____668.310
+--
+------------------------------------------------------------------------------
+-- Input Clock   Freq (MHz)    Input Jitter (UI)
+------------------------------------------------------------------------------
+-- __primary__________12.000____________0.010
+
 
 -- The following code must appear in the VHDL architecture header:
-
 ------------- Begin Cut here for COMPONENT Declaration ------ COMP_TAG
-component RAD_ISERDES
-generic
- (-- width of the data for the system
-  SYS_W       : integer := 1;
-  -- width of the data for the device
-  DEV_W       : integer := 4);
+component CLK_12_250
 port
- (
-  -- From the system into the device
-  data_in_from_pins       : in    std_logic_vector(SYS_W-1 downto 0);
-  data_in_to_device       : out   std_logic_vector(DEV_W-1 downto 0);
-
-  bitslip                 : in    std_logic_vector(SYS_W-1 downto 0);                    -- Bitslip module is enabled in NETWORKING mode
-                                                                -- User should tie it to '0' if not needed
- 
--- Clock and reset signals
-  clk_in                  : in    std_logic;                    -- Fast clock from PLL/MMCM 
-  clk_div_in              : in    std_logic;                    -- Slow clock from PLL/MMCM
-  io_reset                : in    std_logic);                   -- Reset signal for IO circuit
+ (-- Clock in ports
+  -- Clock out ports
+  clk_250          : out    std_logic;
+  clk_12           : in     std_logic
+ );
 end component;
 
 -- COMP_TAG_END ------ End COMPONENT Declaration ------------
 -- The following code must appear in the VHDL architecture
 -- body. Substitute your own instance name and net names.
 ------------- Begin Cut here for INSTANTIATION Template ----- INST_TAG
-
--- User NOTES:
--- None
-
-your_instance_name : RAD_ISERDES
-   port map 
-   ( 
-   data_in_from_pins => data_in_from_pins,
-   data_in_to_device => data_in_to_device,
-   bitslip => bitslip,                           
-   clk_in => clk_in,                            
-   clk_div_in => clk_div_in,                        
-   io_reset => io_reset
-);
-
+your_instance_name : CLK_12_250
+   port map ( 
+  -- Clock out ports  
+   clk_250 => clk_250,
+   -- Clock in ports
+   clk_12 => clk_12
+ );
 -- INST_TAG_END ------ End INSTANTIATION Template ------------

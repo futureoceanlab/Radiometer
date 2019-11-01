@@ -19,35 +19,44 @@ end RAD_counter;
 architecture Behavioral of RAD_counter is
 
   component clk_12_to_240
-    port (CLK_12   : in  std_logic;
-          CLK_240  : out std_logic);
-  end component;
+    port (CLK_12     : in  std_logic;
+          clk_240     : out STD_LOGIC;
+          clk_240b    : out STD_LOGIC;
+          clk_240_90  : out STD_LOGIC;
+          clk_240_90b : out STD_LOGIC);
+    end component;
 
-  signal clk_fast : std_logic := '0';
+  signal clk_fast     : std_logic := '0';
+  signal clk_fastb    : std_logic := '0';
+  signal clk_fast_90  : std_logic := '0';
+  signal clk_fast_90b : std_logic := '0';
   
-  Component oversample 
+  component oversample 
     Port ( Clk      : in  STD_LOGIC;
+           Clkb     : in  STD_LOGIC;
+           Clk_90   : in  STD_LOGIC;
+           Clk_90b  : in  STD_LOGIC;
            SIG_IN   : in  STD_LOGIC;
-           samples  : out std_logic_vector(3 downto 0));
+           sample  : out std_logic_vector(3 downto 0));
   end component;
   
-  signal samples :  std_logic_vector(3 downto 0) := "0000";
+  signal sample :  std_logic_vector(3 downto 0) := "0000";
   
   component count_ones_and_edges
     port (clk      : in  std_logic;
-          samples  : in  std_logic_vector(3 downto 0);
+          sample   : in  std_logic_vector(3 downto 0);
           edges    : out std_logic;
-          ones     : out std_logic_vector(2 downto 0));
+          ones     : out unsigned(2 downto 0));
   end component;
   
   signal edges    : std_logic := '0';
-  signal ones     : std_logic_vector(2 downto 0) := "000";
+  signal ones     : unsigned(2 downto 0) := "000";
 
   component total_counters
     port (
         clk         : in  std_logic;
         edges       : in  std_logic;
-        ones        : in  std_logic_vector(2 downto 0);
+        ones        : in  unsigned(2 downto 0);
         total_edges : out std_logic_vector(21 downto 0);
         total_ones  : out std_logic_vector(21 downto 0));
   end component;
@@ -75,17 +84,23 @@ begin
 ------------------------------
 
 i_clk_12_to_240 : clk_12_to_240 port map (
-        CLK_12   => sysclk, 
-        CLK_240  => clk_fast);
+        CLK_12      => sysclk, 
+        CLK_240     => clk_fast,
+        CLK_240b    => clk_fastb,
+        CLK_240_90  => clk_fast_90,
+        CLK_240_90b => clk_fast_90b);
 
 i_oversample : oversample Port map ( 
            clk      => clk_fast,
+           clkb     => clk_fastb,
+           clk_90   => clk_fast_90,
+           clk_90b  => clk_fast_90b,
            sig_in   => HAM_IN,
-           samples  => samples);
+           sample  => sample);
 
 i_count_ones_and_edges: count_ones_and_edges port map (
           clk      => clk_fast,
-          samples  => samples,
+          sample   => sample,
           edges    => edges,
           ones     => ones);
 
@@ -105,11 +120,20 @@ i_snapshot_deltas : snapshot_deltas port map (
                     delta_ones  => delta_ones,
                     new_deltas  => PING_OUT);
 
-    with DTOG_IN select DATA_OUT <= delta_edges(15 downto 0) when '0', delta_ones(19 downto 4) when others;
+-- Don't do this:
+-- with DTOG_IN select DATA_OUT <= delta_edges(15 downto 0) when '0', delta_ones(19 downto 4) when others;
+-- Leads to asynchronous outputs flips w/o gating, not a good idea
 
 clk_proc: process(clk_fast)
     begin
         if rising_edge(clk_fast) then
+        
+            if DTOG_IN = '0' then
+              DATA_OUT <= delta_edges(15 downto 0);
+            else 
+              DATA_OUT <= delta_ones(19 downto 4);
+            end if;
+            
             case NS_SEL_IN is
               when "000"  => new_limit <= std_logic_vector(to_unsigned(240000-1, 18));    --  fs =  1 kHz
               when "001"  => new_limit <= std_logic_vector(to_unsigned(120000-1, 18));    --  fs =  2 kHz
@@ -120,6 +144,8 @@ clk_proc: process(clk_fast)
               when "110"  => new_limit <= std_logic_vector(to_unsigned( 10000-1, 18));    --  fs = 24 kHz
               when others => new_limit <= std_logic_vector(to_unsigned(  7500-1, 18));    --  fs = 32 kHz
             end case;
+            
+
         end if;
     end process;
 end Behavioral;
