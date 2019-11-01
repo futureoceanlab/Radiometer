@@ -18,13 +18,14 @@
  Its key responsibilities are:
  
  1. Capture & timestamp raw photon counts at 1-32kHz from the Hamamatsu sensor
-    via the Cmod A7 based "A"FE over Ports C and D, plus I2C & SPI sensor data
+    via the Cmod A7 Front End over Ports C and D, plus I2C & SPI sensor data
  2. Store data to non-volatile storage (SD card)
  3. Provide serial interface for control and heartbeat
  4. Don't fuck up
  
  In a little more detail.....
  
+
  A. The Hamamatsu & Xilinx front end:
  
  Our sensor, a Hamamatsu C13366-1350GD, outputs digital signals over SMB of
@@ -172,42 +173,69 @@
 
  C.  Sensors:
  
-BEGIN   OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD  
- 
  On top of the counting photons, we need to keep track of which way the system
- is pointing.  To that end we have a precision Tilt sensor, the Honeywell
- HMC6343, on a Sparkfun breakout, accessible via I2C.  We can be pretty casual
- about  precisely  when  we  query, as the tilt should not be changing all
- that fast,
- 
- The computational job that remains is to sample the 16-bit latch at 12kHz into
- a data buffer (FAST), store the buffer to non-volatile storage (LAZY), update
- the Tilt-sensor data (also LAZY), and provide Comms (async serial during
- runtime, wifi on deck to pull data) to manage the circus (SLOW). This is well
- within the scope of a headless 4-core RPi3A+ with RT-patched kernel.  We
- implement the counter, latch, SMB, and power electronics and connectors as a
- custom hat on the Pi. Note that we need 12GPIO pins for the data, 2 for LE &
- CLR, 2 for I2C (tilt), and 1 last pin for the Hamamtsu status line, for a
- total of 17GPIO lines.
- 
- A note on power.  The radiometer will be fed 12V (up to 20W), but the Pi needs
- 5V and the Hamamtsu needs +5V and -5V.   We handle the conversions with a set
- of three LMR12020's, an extremely high-efficiency (>95%) switching-mode buck
- chipset, producing 5V, 5.5V, and -5.5V. The 5V feeds the Pi/hat while the
- +/-5.5V feed a pair of LDOs to generate very low noise +/-5V rails for the
- Hamamatsu. This brings our overall system efficiency down to about 90%.  Total
- power draw should hover somewhere under 6W nominal, with bursts up to perhaps
- 10W when all hell breaks loose. :-)
- 
-END   OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD  
+ is pointing.  To that end we have a Tilt sensor accessible via SPI.  We can be 
+ pretty casual about precisely when we query, as the tilt should not be changing 
+ all that fast.
+
+ We also have a handful of sensors accessible over I2C (T, P, ...).  Again, 
+ speed is not of the essence, and we can query  them at our leisure.
  
 
+-------------------------------------------------------------------------------- 
+
+
+ D.  Power and Statup / Shutdown Sequences:
+ 
+ A note on power. The main PCB (Teensy, Cmod, etc) operate on a nominal 5V bus,
+ but the Hamamatsu needs stable +5 and -5 rails.  Meanwhile the system will be
+ fed with anything between 9 and 36V, with no guarantee that noise will be low.
+ We handle these conversions with a set of three LMR12020's, an extremely high-
+ efficiency (>95%) switching-mode buck chipset, producing 5V, 5.5V, and -5.5V. 
+ The 5V feeds the main Cmod/Teensy board, while the +/-5.5V feed a pair of LDOs 
+ to generate very low noise +/-5V rails for the Hamamatsu. This brings our 
+ overall system efficiency down to about 90%.  
+
+ To provide power, the radiometer carries four 3.7V 18650 cells internally and 
+ is able to accept 9-36V over the SubConn bulkhead.  The load switches from one
+ to the other automatically as power is plugged in etc via a small power board, 
+ allowing us to keep the system running from the lab to the vehicle -- helpful
+ when running in untethered mode.
+
+ Startup is delicate.  The FPGA cannott accept voltage on its pins while it's 
+ powered down, so we must turn it on first before turning on anything else --  
+ the Teensy, the Hamamatsu, etc.  Ditto  on powerdown. To deal with this, both
+ the Teensy and the Hamamatsu draw power from independent load switches. Once 
+ the Cmod is ready it enables the Teensy load switch;  when the Teensy is ready 
+ it enables the Hamamatsu load switch.  
+
+ Shutting down is more complex.  The shutdown is initiated by shorting two pins 
+ on the connector.  This (a) puls a pin low on the Teensy and (b) gives a 10s
+ time window for everything to shutdown gracefully.  The Teensy then terminates
+ its loops, saves files, disables the Hamamatsu load switch,  and then shuts 
+ itself down.  When the powerbus hits the end of the grace period, the bus is 
+ pulled low, shutting  down the Cmod gracefully.
+ 
+ Here's a short rundown of the voltage  and power demands of each  device:
+
+    Device          Vin     Amax      Atyp      Wmax      Wtyp
+                        V    mA        mA        mW        mW
+    Hamamatsu       +5      1000      200       5000      1000
+                    -5        60       40        300       200      
+    Cmod A7         +5       200       40       1000       200
+    Teensy          +5       240      120       1200       600
+    Motherboard     +5       100       40        500       200
+----------------------------------------------------------------------
+    Total                   1600      440       8000      2200
+
+ Total power draw should thus hover somewhere around 2.2W, with bursts up to 
+ perhaps 6W during startup, shutdown, or acts of Cthulu.
  
  
  -------------------------------------------------------------------------------- 
 
 
- D.  Formatting and Protocols
+ E.  Formatting and Protocols
  
  Metadata File Header Format  (ASCII):
  "Future Ocean Lab Radiometer Data File \r\n"
@@ -239,7 +267,7 @@ END   OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD OLD
  -------------------------------------------------------------------------------- 
 
 
- E. Coding
+ F. Coding
  
  For the most part this is a pretty straightforward coding problem, with two
  caveats.  First, there are multiple timing-critical processes that need to 
@@ -326,12 +354,6 @@ Second, there are multiple resources  with  potential race conditoins:
 
 #include "SdFs.h"
 #include "FreeStack.h"
-
-
-
-
-
-
 
 
 
@@ -443,6 +465,9 @@ char             UTC_Buffer_Tail[] = "??@@";
 
 ------------------------------------------------------------------------------*/
 
+// SD card Recording Unit
+const size_t size_Ring = N_BUFS * SIZE_RU;
+
 typedef struct {
     uint8_t * const _ring;
     size_t Head;  
@@ -460,14 +485,14 @@ typedef t_RingBuffer* hRingBuffer;
         .Head = 0,                      \
         .Tail = 0,                      \
         .Count = 0,                     \
-        .Size = y                 \
-    }
-// MAKE_RING_BUFFER(my_ring_buffer, 32);
+        .Size = y                       \
+    };                                  \
+    hRingBuffer h##x = &x;
 
-// SD card Recording Unit
-const size_t size_Ring = N_BUFS * SIZE_RU;
 
 MAKE_RING_BUFFER(TeensyRing, size_Ring);
+
+
 
 
 /*------------------------------------------------------------------------------ 
@@ -735,7 +760,7 @@ FASTRUN void ISR_Ping(void) {
     OldPingTime = NewPingTime;
     
 //          Push local buffer into RingBuffer
-    Ring_Push(NewData,6);
+    Ring_Push(hTeensyRing,NewData,6);
 
 //          Incrementt per-second counters
     _Pulses += NewData[0];
@@ -743,7 +768,7 @@ FASTRUN void ISR_Ping(void) {
     
 //          If new payload is available (sensor data, etc) push to RingBuffer
     if(fNewPayload == TRUE) {
-      Ring_Push(NewPayload,PayloadSize);
+      Ring_Push(hTeensyRing,NewPayload,PayloadSize);
       fNewPayload = FALSE;
     }
 
@@ -757,15 +782,13 @@ FASTRUN void ISR_Ping(void) {
       _tmptime[1] = MillisElapsed();
       memcpy(UTC_Buffer+4,_tmptime,8);
 //               Write to RingBuffer
-      Ring_Push(UTC_Buffer,16);
+      Ring_Push(hTeensyRing,UTC_Buffer,16);
       Pulses_LastSec = _Pulses;
       TimeHi_LastSec = _TimeHi;
       _Pulses = _TimeHi = 0;
       fHeartBeat = HIGH;
     }
 
-
-  
   interrupts();
 }
  
@@ -787,15 +810,15 @@ void loop() {
   //
 
   if(Ring->Count >= SIZE_RU) {
-    if (file.write(Ring->_ring + Ring->tail, SIZE_RU) != SIZE_RU) {
+    if (file.write(hTeensyRing->_ring + hTeensyRing->Tail, SIZE_RU) != SIZE_RU) {
         Serial.println("file.write failed");
         file.close();
         return(-1);
       }
     noInterrupts();
-    Ring->Count -= SIZE_RU;
+    hTeensyRing->Count -= SIZE_RU;
     interrupts();
-    Ring->tail = (Ring->tail + SIZE_RU) % Ring->buf_length;
+    hTeensyRing->Tail = (hTeensyRing->Tail + SIZE_RU) % hTeensyRing->Size;
   }
   
   // ------------------------------------------------------------ 
