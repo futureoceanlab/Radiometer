@@ -1,21 +1,18 @@
 /*------------------------------------------------------------------------------ 
-
-     Rad_Teensy
- 
-------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------ 
-
-     Allan Adams
-     - Future Ocean Lab
-       Massachusetts Institute of Technology
-     - Deep Submergence Lab, AOPE
-       Woods Hole Oceanographic Institute
- 
-------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------ 
- 
- RAD_Teensy is a Teensy 3.6 executable that operates the FOL/WHOI Radiometer.
- Its key responsibilities are:
+     MIT Future Ocean Lab  &&  WHOI Deep Submergence Lab
+--------------------------------------------------------------------------------
+ Project:       FOL Radiometer
+ Version:       Beebe
+ Design:        RAD_Teensy
+ Substrate:     Teensy 3.6
+--------------------------------------------------------------------------------
+ Module:        RAD_Teensy
+ Filename:      RAD_Teensy.iso
+ Created:       26/10/2019
+ Author:        Allan Adams <awa@mit.edu>
+--------------------------------------------------------------------------------
+ Description:   RAD_Teensy is a Teensy 3.6 executable that operates the FOL/WHOI 
+                Radiometer.  Its key responsibilities are:
  
  1. Capture & timestamp raw photon counts at 1-32kHz from the Hamamatsu sensor
     via the Cmod A7 Front End over Ports C and D, plus I2C & SPI sensor data
@@ -24,11 +21,15 @@
  4. Don't fuck up
  
  In a little more detail.....
- 
 
- A. The Hamamatsu & Xilinx front end:
+ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+   A. The Hamamatsu & Xilinx front end:
+
+ The FOL/DSL Radiometer is designed to count photons throughout the first 800m
+ of the open ocean.  At its heart is an array of geiger-mode photo-diodes 
+ capable of resolving individual photon hits with great precision. 
  
- Our sensor, a Hamamatsu C13366-1350GD, outputs digital signals over SMB of
+ The sensor, a Hamamatsu C13366-1350GD, outputs digital signals over SMB of
  duration 20ns and amplitude ~3.7V. More precisely, there is a 40% chance 
  (quantum efficiency 0.4) that any single photon hitting the sensor will trigger 
  a geiger-mode voltage spike of Raleigh-ish form (a sudden rise and a gradual 
@@ -116,15 +117,14 @@
     NS_SEL_IN[3]   Teensy-->Cmod   Select sampling rate (1-32kHz)
 
 
--------------------------------------------------------------------------------- 
+ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
- B.  Data Rates:
+   B.  Data Rates:
 
  The Cmod is sending two 16-bit samples with every ping.  Pings arrive with a 
  frequency of 1, 2, 4, 8, 10, 16, 24, 32 kHz (user selected).  Each ping is 
  stored along with the elapsed time since previous ping (2B) for a total of 6B 
- per ping.  That
- gives the following table  of  data rates:
+ per ping.  That gives the following table of data rates:
        kHz    kB/s     MB/hr     GB/day
        1         6      21.6       0.518
        2        12      43.2       1.04
@@ -168,10 +168,9 @@
 
 
 
--------------------------------------------------------------------------------- 
+ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
-
- C.  Sensors:
+  C.  Sensors:
  
  On top of the counting photons, we need to keep track of which way the system
  is pointing.  To that end we have a Tilt sensor accessible via SPI.  We can be 
@@ -182,10 +181,8 @@
  speed is not of the essence, and we can query  them at our leisure.
  
 
--------------------------------------------------------------------------------- 
-
-
- D.  Power and Statup / Shutdown Sequences:
+ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+   D.  Power and Statup / Shutdown Sequences:
  
  A note on power. The main PCB (Teensy, Cmod, etc) operate on a nominal 5V bus,
  but the Hamamatsu needs stable +5 and -5 rails.  Meanwhile the system will be
@@ -232,8 +229,7 @@
  perhaps 6W during startup, shutdown, or acts of Cthulu.
  
  
- -------------------------------------------------------------------------------- 
-
+ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
  E.  Formatting and Protocols
  
@@ -264,8 +260,7 @@
  
  
  
- -------------------------------------------------------------------------------- 
-
+ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
  F. Coding
  
@@ -277,8 +272,9 @@
     2. Write logged data to SD
     3. Read from I2C  & SPI  sensors
     4. Serial Heartbeat and CLI
+        Startup choice: Ns or Download? with timeout
 
-Second, there are multiple resources  with  potential race conditoins:
+ Second, there are multiple resources  with  potential race conditoins:
  
     1. RingBuffer:  
       Write: Ping_ISR
@@ -320,19 +316,21 @@ Second, there are multiple resources  with  potential race conditoins:
     
           Record new ping time
           Set Dtog High
-          Decriment Ping_Count
           Read 16-bit businto local buffer
           Set Dtog Low
-          Write 2B us-since-last-ping into local buffer
           Read 16-bit bus (8 in PortC, 8 in PortD) into local buffer
-          If new payload is available (sensor data, etc) add to local buffer
+          Write 2B us-since-last-ping into local buffer
+          Write local buffer into RingBuffer
+          If new payload is available (sensor data, etc) write payload to RingBuffer
+            Payload: 12B chunk with !0!0 2B Tilt 2B Incl  !0!0  2B Rot 2B Temp
+          Decriment Ping_Count
           If 1s of Pings have gone by, add UTC to local buffer:
                4B ASCII @@??
                4B UTC
                4B ElapsedMillis
                4B ASCII ??@@
                Ping_Count = Ns;
-          Write local buffer into global read buffer
+               Write local buffer into RingBuffer
 
     3. In main loop:
           If an RU of data are abaiable in the Ring buffer, write 1RU to SD
@@ -341,7 +339,16 @@ Second, there are multiple resources  with  potential race conditoins:
           Check for Serial IO and process expeditiously.
 
 
- */
+  
+--------------------------------------------------------------------------------
+
+  Dependencies: 
+  
+--------------------------------------------------------------------------------
+
+  Issues:
+  
+------------------------------------------------------------------------------*/
 
 
 
@@ -350,7 +357,6 @@ Second, there are multiple resources  with  potential race conditoins:
     Header Files
 
 ------------------------------------------------------------------------------*/
-
 
 #include "SdFs.h"
 #include "FreeStack.h"
@@ -366,6 +372,8 @@ Second, there are multiple resources  with  potential race conditoins:
 // RingBuffer definitions
 //#define SIZE_RU 32768
 //#define N_BUFS 6
+//#define SIZE_RU 512
+//#define N_BUFS 400
 #define SIZE_RU 16384
 #define N_BUFS 12
 
@@ -374,8 +382,11 @@ Second, there are multiple resources  with  potential race conditoins:
 #define SD_CONFIG SdioConfig(FIFO_SDIO)
 
 // File Definitions
-#define N_Files 24
+// 1GB  Pre-allocated Files
 #define File_Length 1073741824
+// How many files to Pre-allocate.  At 10kHz, we eat 5.2GB per day, so 6 should more than suffice.
+#define N_Files 6
+
 
 // Possible sampling rates:
 #define Ns_0   1000
@@ -388,7 +399,7 @@ Second, there are multiple resources  with  potential race conditoins:
 #define Ns_7  32000
               
 // Selected Sampling Rate
-#define Ns_Sel 0
+#define Ns_Sel    0
 
 
 
@@ -403,30 +414,30 @@ Second, there are multiple resources  with  potential race conditoins:
 const byte pin_PortC[]  = {15, 22, 23, 9, 10, 13, 11, 12};  // Byte 1
 const byte pin_PortD[]  = { 2, 14,  7, 8,  6, 20, 21,  5};  // Byte 2
 const byte pin_Ping     =  34; // Data redy at falling edge
-const byte pin_TSleep   =  39; //
-const byte pin_HamRdy   =   3; //
+const byte pin_HamRdy   =   3; // Hamamatsu Ready HIGH
+const byte pin_PwrDwn   =  38; // Low:Power is going down in 10s, burn the files and save the cannolli
 
 // Output Pins
 const byte pin_NsSel[]  = {16,17,18}; // 24, 25, 28?
-const byte pin_PWM[]    = {36,37,38}; // One of these is gone, one will be tthe power-down signal
-const byte pin_PwrDwn   =  35; // Low:Power is going down in 10s, burn the files and save the cannolli
+const byte pin_PWM[]    = {35,36,37}; // One of these is gone, one will be tthe power-down signal
 const byte pin_Dtog     =  33; // Low to request Pulse count, High to request Cycle count
 const byte pin_HamPwr   =  4;  // Enable power to the Hamamatsu Load Switch
 
 // COMMS PINS
-const byte pin_I2C_SDA    = 18; // SDA
-const byte pin_I2C_SCL    = 19; // SCL 
+const byte pin_I2C0_SDA    = 18; // SDA
+const byte pin_I2C0_SCL    = 19; // SCL 
 
-const byte pin_Serial1_TX = 26; // TX
-const byte pin_Serial1_RX = 27; // RX 
+const byte pin_Ser1_TX = 26; // TX
+const byte pin_Ser1_RX = 27; // RX 
 
-const byte pin_CANBUS_TX  = 29; // TX
-const byte pin_CANBUS_RX  = 30; // RX 
+const byte pin_CAN0_TX  = 29; // TX
+const byte pin_CAN0_RX  = 30; // RX 
+const byte pin_CAN0_Lo  = 39; // Enable Low Power Mode
 
-const byte pin_SPI_MOSI   =  1; // MOSI 
-const byte pin_SPI_MISO   =  0; // MISO
-const byte pin_SPI_CS     = 31; // CS
-const byte pin_SPI_SCK    = 32; // SCK
+const byte pin_SPI1_MOSI   =  1; // MOSI 
+const byte pin_SPI1_MISO   =  0; // MISO
+const byte pin_SPI1_CS     = 31; // CS
+const byte pin_SPI1_SCK    = 32; // SCK
 
 
 
@@ -437,26 +448,20 @@ const byte pin_SPI_SCK    = 32; // SCK
 ------------------------------------------------------------------------------*/
 
 
-// Preallocate 1GiB files.
-const uint64_t PRE_ALLOCATE_SIZE = File_Length;
-
 SdExFat sd;
-ExFile file[N_Files];
+
+ExFile RAD_files[N_Files];
+
 char FileName[N_Files];
 int CurrentFile = 0;
 
-volatile uint8_t Payload[8];
-volatile size_t  PayloadSize=0;
+// Preallocate 1GiB files.
+const uint64_t PRE_ALLOCATE_SIZE = File_Length;
 
-
+volatile uint8_t Payload[12] = ;
 elapsedMillis    MillisElapsed;
-static uint8_t   UTC_Buffer[16];
-char             UTC_Buffer_Head[] = "@@??"; 
-char             UTC_Buffer_Tail[] = "??@@"; 
 
-
-
-
+uint8_t UTC_Buffer[18] = 0xFFFFFFFFFF0000000000000000FFFFFFFFFF;
 
 
 /*------------------------------------------------------------------------------ 
@@ -490,8 +495,21 @@ typedef t_RingBuffer* hRingBuffer;
     hRingBuffer h##x = &x;
 
 
-MAKE_RING_BUFFER(TeensyRing, size_Ring);
+int Ring_Write(ExFile *file, hRingBuffer Ring) {
+    if (file->write(Ring->_ring + Ring->Tail, SIZE_RU) != SIZE_RU) {
+        Serial.println("file.write failed");
+        file->close();
+        return(-1);  // if file write fails, panic with -1
+      }
+    noInterrupts();
+    Ring->Count -= SIZE_RU;
+    interrupts();
+    Ring->Tail = (Ring->Tail + SIZE_RU) % Ring->Size;
+    if(file->full()) return(1);
+    return(0);
+}
 
+MAKE_RING_BUFFER(TeensyRing, size_Ring);
 
 
 
@@ -499,8 +517,6 @@ MAKE_RING_BUFFER(TeensyRing, size_Ring);
 
     Ring_Push  :  Inserts data into the Ring
     
-------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------ 
     Along the way it checks for 2 edge cases:
         A. Ring Full 
             ==> returns -1
@@ -510,7 +526,6 @@ MAKE_RING_BUFFER(TeensyRing, size_Ring);
       Note: assume Ring_Push will run inside an interrupt routine
       
 ------------------------------------------------------------------------------*/
-
 int Ring_Push(hRingBuffer Ring, uint8_t *data, uint8_t data_len) {
   static size_t next,nibbleA,nibbleB;
   
@@ -522,21 +537,18 @@ int Ring_Push(hRingBuffer Ring, uint8_t *data, uint8_t data_len) {
   next = Ring->Head + data_len;  // next is where head will point to after this write.
   
   if (next < Ring->Size) { // if next is inside ring, just do it
-    memcpy(Ring->_ring + Ring->Head, data, data_length);
+    memcpy(Ring->_ring + Ring->Head, data, data_len);
     Ring->Head = next;
   }
-  else {// if next is outside ring, need to break up data chunk and write across modulo:
-    nibbleA = Ring->Size - Ring->Head; // Data slots remaining at end of buffer
-    nibbleB = data_len - nibbleA; // Length of leftover data to push into begining of buffer
-    memcpy(Ring->_ring + Ring->Head, data, nibbleA);
+  else {                                // if next is outside ring, need to break up data chunk and write across modulo:
+    nibbleA = Ring->Size - Ring->Head;  // Data slots remaining at end of buffer
+    nibbleB = data_len - nibbleA;       // Length of leftover data to push into begining of buffer
+    memcpy(Ring->_ring + Ring->Head,  data,           nibbleA);
     if(nibbleB>0) memcpy(Ring->_ring, data + nibbleA, nibbleB);
     Ring->Head = nibbleB;
   }
   return 0;  // return success to indicate successful push.
 }
-
-
-
 
 
 
@@ -546,6 +558,11 @@ int Ring_Push(hRingBuffer Ring, uint8_t *data, uint8_t data_len) {
 
 ------------------------------------------------------------------------------*/
 
+/*------------------------------------------------------------------------------ 
+
+    waitSerial(msg)
+
+------------------------------------------------------------------------------*/
 void waitSerial(const char* msg) {
   do {
     delay(10);
@@ -559,15 +576,10 @@ void waitSerial(const char* msg) {
 
 
 
-
-
 /*------------------------------------------------------------------------------ 
 
-    Setup and Initialization
+    setup()
 
-------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------ 
-    
       A. Setup GPIO & comms channels
   
       B. Build filestructure: 
@@ -583,49 +595,51 @@ void waitSerial(const char* msg) {
      
 
 ------------------------------------------------------------------------------*/
-
-
 void setup() {
-
-// ----------------------------------------------------------------------------
-//  Setup GPIO & comms channels
 
 // GPIO
 
-  for (int i=0; i<8; i++) { pinMode(pin_PortC[i],INPUT); } ;
-  for (int i=0; i<8; i++) { pinMode(pin_PortD[i],INPUT); } ;
+  for (int i=0; i<8; ++i) { pinMode(pin_PortC[i],INPUT); } ;
+  for (int i=0; i<8; ++i) { pinMode(pin_PortD[i],INPUT); } ;
   pinMode(pin_Ping  ,INPUT); 
-  pinMode(pin_TSleep,INPUT);
   pinMode(pin_HamRdy,INPUT);
+  pinMode(pin_PwrDwn,INPUT); // pinned by 3.3 Zener until pulled low by power pcb
 
-  for (int i=0; i<2; i++) { pinMode(pin_NsSel[i],OUTPUT); } ;
-  for (int i=0; i<3; i++) { pinMode(pin_PWM[i]  ,OUTPUT); } ;
-  pinMode(pin_Dtog    ,OUTPUT);
-  pinMode(pin_HamPwr  ,OUTPUT);
+  for (int i=0; i<3; ++i) { 
+    pinMode(pin_NsSel[i],OUTPUT); 
+    digitalWrite(pin_NsSel[i],LOW); 
+  }
+  
+  pinMode(pin_Dtog     ,OUTPUT);
+  pinMode(pin_HamPwr   ,OUTPUT);
+  pinMode(pin_CAN0_Lo  ,OUTPUT);
 
-  digitalWrite(pin_Dtog,LOW);
-  digitalWrite(pin_NsSel[0],LOW);
-  digitalWrite(pin_NsSel[1],LOW);
-  digitalWrite(pin_NsSel[2],LOW);
+  digitalWrite(pin_Dtog   ,LOW);
+  digitalWrite(pin_HamPwr ,LOW); // High enables the load switch
+  digitalWrite(pin_CAN0_Lo,HIGH); // Low power mode == Pin --> VCC
+  
+//  for (int i=0; i<3; ++i) { pinMode(pin_PWM[i]  ,OUTPUT); } ;
 //  digitalWrite(pin_PWM[0],LOW);
 //  digitalWrite(pin_PWM[1],LOW);
 //  digitalWrite(pin_PWM[2],LOW);
-//  digitalWrite(pin_PWM[3],LOW);
 
 
-// I2C
+// ------------------------------------------------------------ 
+//   Start Serial1, Query data rate, set Ns, and start Hamamatsu
+//
 
-// SPI
+  Serial1.setTX(pin_Ser1_TX);
+  Serial1.setRX(pin_Ser1_RX);
+  Serial1.begin(115200,SERIAL_8N1);
+  Serial1.println("RAD_Counter_Teensy Reporting for Service. Holy Shit, is that a Tuna??");
 
-//  SPI.setMOSI(pin_SPI_MOSI);
-//  SPI.setMISO(pin_SPI_MISO);
-//  SPI.setSCK( pin_SPI_SCK);
-//  pinMode (pin_SPI_CS, OUTPUT);
-//  SPI.begin();
+
+
+// I2C0
+
+// SPI1
 
 // CANBUS: Can0 on 29/30
-// Can0.begin();
-
 
 
 // ------------------------------------------------------------ 
@@ -633,52 +647,54 @@ void setup() {
 //        i. Preallocate SD files: 
 //           1 hour at max 32kHz data rate = 691 MB
 //           ==> Filesize = 1GB
-//           Preallocate array of 24 files
+//           1 day at 10kHz nominal = 5.2GB
+//           ==> Preallocate array of 6 files
 //        ii. Write global headers  (first 16kB = header)
 //
 
-  for (int i=0;i<N_Files;i++) {
+
+    // TODO: Filename Shuffling
+
+
+  for (int i=0;i<N_Files;++i) {
     if (!file[i].open(FileName[i], O_CREAT | O_TRUNC |O_RDWR)) {
       sd.errorHalt("file.open failed",);
     }
     if (!file[i].preAllocate(PRE_ALLOCATE_SIZE)) {
-      sd.errorHalt("file.preAllocate failed");    
+      sd.errorHalt("file.preAllocate failed");
     }
   }
 
-  // WRITE HEADERS
-
-
-
-
+// WRITE HEADERS
 
 // ------------------------------------------------------------ 
-//   Build ring buffers, initialize related variables
+//   Initialize buffering and timing variables
 //
 
   MillisElapsed(0);
+  
   memcpy(UTC_Buffer   ,UTC_Buffer_Head,4);
   memcpy(UTC_Buffer+12,UTC_Buffer_Tail,4);
-
-
-
-// ------------------------------------------------------------ 
-//   Start Serial, Query data rate, set Ns, and start Hamamatsu
-//
-
-  Serial1.setTX(pin_Serial1_TX);
-  Serial1.setRX(pin_Serial1_RX);
-  Serial1.begin(115200,SERIAL_8N1);
-  Serial1.println("RAD_Counter_Teensy Reporting for Service");
   
-  while (!Serial) {
+
+  while (!Serial1) {
     yield();
   }
-  waitSerial("Select Sampling Rate (0-7)");
+
+  waitSerialTimeout("Press Y to select sampling rate or N to offload data: ", 30);
+
+  // TODO: Catch Input, do logic  
+
+  waitSerial("Select Sampling Rate (0-7): ");
+
+  uint8_t Ns_Choice = 0;
+  
+  // TODO: Catch Input into Ns_Choice
 
   digitalWrite(pin_NsSel[0],( (Ns_Choice >> 0)  & 0x01  ? HIGH : LOW));
   digitalWrite(pin_NsSel[1],( (Ns_Choice >> 1)  & 0x01  ? HIGH : LOW));
   digitalWrite(pin_NsSel[2],( (Ns_Choice >> 2)  & 0x01  ? HIGH : LOW));
+
   Serial.print("Ring Dimension = ");
   Serial.println(size_Ring);
   Serial.print("FreeStack: ");
@@ -687,25 +703,20 @@ void setup() {
 
 // Startup Hamamatsu
   digitalWrite(pin_HamPwr,HIGH);
-
+  Serial.println("Hamamatsu Powered Up... ");
+  
 
 // ------------------------------------------------------------ 
 //    Initiate Interrupt routine PING_ISR waiting on PING_IN
 //
   attachInterrupt(pin_Ping, ISR_Ping, FALLING);
-
+  Serial.println("Photon counting has begun!");
 // LET'S GO!!!
 
 } // Setup()
 
 
 
-
-/*------------------------------------------------------------------------------ 
-
-    ISR_Ping : Ping interrupt routine
-
-------------------------------------------------------------------------------*/
 /*------------------------------------------------------------------------------ 
 
     ISR_Ping: respond to ping by reading data and storing to RingBuffer
@@ -726,11 +737,10 @@ x         If new payload is available (sensor data, etc) push to RingBuffer
           Write local buffer into global read buffer
 
 ------------------------------------------------------------------------------*/
-
 FASTRUN void ISR_Ping(void) {
   static uint16_t NewData[3];
-  static uint32_t _Pulses_=0,_Duty=0; // Pulses and Duty over last Sec
-  static uint32_t _tmptime[2];
+  static uint32_t _Pulses_=0,_TimeHi=0; // Pulses and Duty over last Sec
+  static uint32_t tmptime[2];
   static elapsedmicros Ping_uclock;
   static uint16_t NewPingTime = 0,
                   OldPingTime = 0,
@@ -778,11 +788,11 @@ FASTRUN void ISR_Ping(void) {
       Ping_Count = Pings_Per_Sec;
 //               4B UTC
 //               4B ElapsedMillis
-      _tmptime[0] = now();
-      _tmptime[1] = MillisElapsed();
-      memcpy(UTC_Buffer+4,_tmptime,8);
+      tmptime[0] = now();
+      tmptime[1] = MillisElapsed();
+      memcpy(UTC_Buffer+5,tmptime,8);
 //               Write to RingBuffer
-      Ring_Push(hTeensyRing,UTC_Buffer,16);
+      Ring_Push(hTeensyRing,UTC_Buffer,18);
       Pulses_LastSec = _Pulses;
       TimeHi_LastSec = _TimeHi;
       _Pulses = _TimeHi = 0;
@@ -798,53 +808,153 @@ FASTRUN void ISR_Ping(void) {
 
 
 void loop() {
-
+  static int eval=0,FileCounter=0;
   while() {
     
-  // ------------------------------------------------------------ 
-  //  Query Sensors
-  //
-  
   // ------------------------------------------------------------ 
   //  Log Data
   //
 
-  if(Ring->Count >= SIZE_RU) {
-    if (file.write(hTeensyRing->_ring + hTeensyRing->Tail, SIZE_RU) != SIZE_RU) {
-        Serial.println("file.write failed");
-        file.close();
+  if(hTeensyRing->Count > SIZE_RU) {
+    if((eval = Ring_Write(&RAD_Files[FileCounter],hTeensyRing)) != 0) {
+      if(eval == -1) {
+        /*  TODO: panic*/
         return(-1);
-      }
-    noInterrupts();
-    hTeensyRing->Count -= SIZE_RU;
-    interrupts();
-    hTeensyRing->Tail = (hTeensyRing->Tail + SIZE_RU) % hTeensyRing->Size;
+        }
+      if(eval == 1) {
+        if(++FileCounter == N_Files) {
+          /* TODO:  Hold Ints, ADD MORE FILES, EAT THE LOST DATA FOR A BIT, restore Ints*/
+        }
+      }  
+    }
   }
+
+
   
+  // ------------------------------------------------------------ 
+  //  Query Sensors
+  //
+
+  /* TODO:
+   *  Add Query Code
+   *  Fill into Payload
+   *  Sing for joy
+  */
+
   // ------------------------------------------------------------ 
   //  Heartbeat
   //
 
   if(fHeartbeat==HIGH) {
+    // Beat the Heart
+    Serial1.print(" Pulses: ");
+    Serial1.println((uint32_t)Pulses_LastSec);
+    Serial1.print(" TimeHi: ");
+    Serial1.println((uint32_t)TimeHi_LastSec);
+    
+    // TODO: Check for HamRdy: if low, Squeak, plus anything else we want
+
     cli();
     fHeartbeat=LOW;    
     sei();
-    // Beat the Heart
-    Serial.print(" Pulses: ");
-    Serial.println((uint32_t)Pulses_LastSec);
-    Serial.print(" TimeHi: ");
-    Serial.println((uint32_t)TimeHi_LastSec);
+
   }
 
   // ------------------------------------------------------------ 
   //  Serial CLI
   //
 
+  // ------------------------------------------------------------ 
+  //  Check Shutdown Pin
+  //
 
-  }  // while()
   
+  }  // while()
+
+
+  /*  TODO: Deal with file closures elegantly
+   * 
+   */
+   */
   if (!file.truncate()) {
     sd.errorHalt("truncate failed");
   }
 
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ %                                                                             %
+ %                             FileIO Function                                 %
+ %                                                                             %
+ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ */
+int    OpenFiles(void)  {
+    char sFileNameTime[24],sHeaderTime[24],sFileNameTxt[128],sFileNameBin[128];
+    const char sFileRoot[]="/home/pi/src/Radiometer/Data/FOL_RAD_";
+    time_t rawtime;
+    struct tm *timeinfo;
+    
+    time(&rawtime);
+    timeinfo = gmtime(&rawtime);
+    
+    strftime(sHeaderTime,24,"%F %T",timeinfo); // "YYYY-MM-DD HH:MM:SS"
+    strftime(sFileNameTime,24,"%Y_%m_%d_%H_%M_%S",timeinfo); // "YYYY_MM_DD__HH_MM_SS"
+    
+    strcpy(sFileNameTxt,sFileRoot);
+    strcat(sFileNameTxt,sFileNameTime);
+    strcpy(sFileNameBin,sFileNameTxt);
+    strcat(sFileNameTxt,".txt");
+    strcat(sFileNameBin,".bin");
+    
+    pDataFile =  fopen(sFileNameBin,"a");
+    pMetaFile =  fopen(sFileNameTxt,"a");
+    
+    fprintf(pMetaFile,"Future Ocean Lab Radiometer Data File \r\n");
+    fprintf(pMetaFile,"Software Version: %f \r\n",FOL_RAD_VV);
+    fprintf(pMetaFile," \r\n");
+    fprintf(pMetaFile,"Sampling Rate: %u Hz \r\n",SAMPLES_PER_SEC);
+    fprintf(pMetaFile,"Data Block Size: %u Bytes  \r\n",DATA_BLOCK_SIZE);
+    fprintf(pMetaFile,"Data Format: Nanoseconds [2B] Photon  Count [2B]   \r\n");
+    fprintf(pMetaFile,"Data Block Header Size: 32B  \r\n");
+    fprintf(pMetaFile,"Data Block Header Format: \"@@...(18 times)...@@\" EpochTime[4B] NanoSeconds[4B] Tilt[6B] \r\n");
+    fprintf(pMetaFile," \r\n");
+    fprintf(pMetaFile,"%s, %s \r\n",CRUISE_NAME,SHIP_NAME);
+    fprintf(pMetaFile,"File Created at %s \r\n",sHeaderTime);
+    
+    fflush(pMetaFile);
+
+    return 0;
+}
+
+void   CloseFiles(uint16_t BlocksWritten)  {
+    time_t rawtime;
+    struct tm *timeinfo;
+    char sbuffer[24];
+    
+    time(&rawtime);
+    timeinfo = gmtime(&rawtime);
+    
+    strftime(sbuffer,24,"%F  %T",timeinfo); // "YYYY-MM-DD HH:MM:SS"
+    fprintf(pMetaFile,"File Closed at %s after %u Blocks Written. \r\n",sbuffer,BlocksWritten);
+    
+    fflush(pMetaFile);
+    fflush(pDataFile);
+    
+    fclose(pMetaFile);
+    fclose(pDataFile);
+    
 }

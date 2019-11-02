@@ -14,9 +14,6 @@ architecture Behavioral of count_ones_and_edges is
     signal was_high     : std_logic := '0';
 begin
 
-
-
-
 process(clk)
     variable sample_cat : std_logic_vector (3 downto 0) :="0000";
     begin
@@ -47,17 +44,18 @@ process(clk)
                 when others => ones <= "100"; --
             end case;
             
-            sample_cat :=  sample(3) & sample(1) & last_sample(3) & last_sample(1);
 
-            case sample_cat is 
-                when "1111" =>
-                  edges     <= not was_high;
-                  was_high  <= '1';
-                when others =>
-                  edges     <= '0';
-                  was_high  <= '0';
-            end case;
+--            if ((sample(3) and sample(1)) and (last_sample(3) and last_sample(1))) = 1 then
+            if ((sample(3) = 1) and (sample(1) = 1) ) and ((last_sample(3) = 1) and (last_sample(1) = 1)) then
+              edges     <= not was_high;
+              was_high  <= '1';
+            else
+              edges     <= '0';
+              was_high  <= '0';
+            end if;
+                  
             last_sample <= sample;
+
         end if;
     end process;
 
