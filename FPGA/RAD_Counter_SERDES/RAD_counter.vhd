@@ -1,35 +1,79 @@
+----------------------------------------------------------------------------------
+--     MIT Future Ocean Lab
+----------------------------------------------------------------------------------
+-- Project:       FOL Radiometer
+-- Version:       Beebe
+-- Design:        RAD_Counter_SERDES
+-- Substrate:     CMod A7 
+----------------------------------------------------------------------------------
+-- Module:        RAD_Counter (Behavioral)
+-- Filename:      RAD_Counter.vhd
+-- Created:       18/8/2019
+-- Author:        Allan Adams <awa@mit.edu>
+-- Guru:          Mike Field <hamster@snap.net.nz>  <=  Many props and thanks!!!
+----------------------------------------------------------------------------------
+-- Description:   This project counts pulses from a fast source and estimates
+--                the area under the curve.  The input signal is a random train
+--                of 20+ns pulses (<50MHz).  We need to count these pulses and
+--                also estimate what fraction of the time the signal is high.
+--                We sample the signal via 4:1 ISERDES running at 250MHz, giving
+--                a 1GHz bitstream-sample of the incoming signal.  We then count
+--                ones in the stream to estimate time-high, and detect 16+ns long
+--                pulses with a simple edge detector.  A running tally is kept of 
+--                both counts.  Count-changes are output over a 16-bit bus 
+--                (DATA_OUT) along with a pulse (PING_OUT) at a user-selectable 
+--                rate (NS_SEL_IN), with a binary input (DTOG_IN) gating a mux
+--                controlling which count appears on the bus.  The time-high 
+--                count is prescaled by 4 bits to avoid overflowing the bus.
+--
+-- Dependencies: 
+-- 
+-- Issues:
+-- 
+----------------------------------------------------------------------------------
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
 
 entity RAD_counter is
+  generic (
+--    N_fast : integer := 240000000 -- frequency  in Hz of fast clock 
+    N_fast : integer := 250000000 -- frequency  in Hz of fast clock 
+    );
   port (
     -- in
-    sysclk    : in  std_logic;          -- Cmod A7 system clock -- 12MHz
-    HAM_IN    : in  std_logic;          -- Input Signal (<50MHz asynch)
-    DTOG_IN   : in  std_logic                      := '0';  -- Select EDGES or CYCLES out via DATA
-    NS_SEL_IN : in  std_logic_vector (2 downto 0)  := "000";  -- External f_Sample
+    sysclk    : in  std_logic                      := '0';    -- Cmod A7 system clock -- 12MHz
+    HAM_IN    : in  std_logic                      := '0';    -- Input Signal (<50MHz asynch)
+    NS_SEL_IN : in  std_logic_vector (2 downto 0)  := "000";  -- External f_Sample choice
+    DTOG_IN   : in  std_logic                      := '0';    -- HIGH: Pulses   LOW: Cycles
+    RESET_IN  : in  std_logic                      := '0';    -- HIGH: Reset counters
+    KILLT_IN  : in  std_logic                      := '0';    -- HIGH: turn Teensy off
     --  out                                                  
     DATA_OUT  : out std_logic_vector (15 downto 0) := (others => '0');      -- Accumulated Edges
-    PING_OUT  : out std_logic                      := '0';  -- CALL BOYS IN FOR DINNER
-    TPWR_OUT  : out std_logic                      := '1'
+    PING_OUT  : out std_logic                      := '0';    -- CALL BOYS IN FOR DINNER
+    TPWR_OUT  : out std_logic                      := '1';
+    --  LEDs to kill
+    LEDL      : out std_logic_vector (1 downto 0)  := (others => '0');
+    LEDH      : out std_logic_vector (2 downto 0)  := (others => '1') 
     );
 end RAD_counter;
 
 architecture Behavioral of RAD_counter is
 
-  component clk_12_to_240
-    port (CLK_12     : in  std_logic;
-          clk_240     : out STD_LOGIC;
-          clk_240b    : out STD_LOGIC;
-          clk_240_90  : out STD_LOGIC;
-          clk_240_90b : out STD_LOGIC);
+  component rad_clocks
+    generic (
+          N_fast       : integer);
+    port (CLK_IN       : in  std_logic;
+          CLK_FAST     : out STD_LOGIC;
+          CLK_FASTb    : out STD_LOGIC;
+          CLK_FAST_90  : out STD_LOGIC;
+          CLK_FAST_90b : out STD_LOGIC);
     end component;
 
-  signal clk_fast     : std_logic := '0';
-  signal clk_fastb    : std_logic := '0';
-  signal clk_fast_90  : std_logic := '0';
-  signal clk_fast_90b : std_logic := '0';
+  signal clk     : std_logic := '0';
+  signal clkb    : std_logic := '0';
+  signal clk_90  : std_logic := '0';
+  signal clk_90b : std_logic := '0';
   
   component oversample 
     Port ( Clk      : in  STD_LOGIC;
@@ -37,7 +81,7 @@ architecture Behavioral of RAD_counter is
            Clk_90   : in  STD_LOGIC;
            Clk_90b  : in  STD_LOGIC;
            SIG_IN   : in  STD_LOGIC;
-           sample  : out std_logic_vector(3 downto 0));
+           sample   : out std_logic_vector(3 downto 0));
   end component;
   
   signal sample :  std_logic_vector(3 downto 0) := "0000";
@@ -46,106 +90,132 @@ architecture Behavioral of RAD_counter is
     port (clk      : in  std_logic;
           sample   : in  std_logic_vector(3 downto 0);
           edges    : out std_logic;
-          ones     : out unsigned(2 downto 0));
+          ones     : out std_logic_vector(2 downto 0));
   end component;
   
   signal edges    : std_logic := '0';
-  signal ones     : unsigned(2 downto 0) := "000";
+  signal ones     : std_logic_vector(2 downto 0) := "000";
+  signal reset    : std_logic := '0';
 
   component total_counters
     port (
         clk         : in  std_logic;
         edges       : in  std_logic;
-        ones        : in  unsigned(2 downto 0);
-        total_edges : out std_logic_vector(21 downto 0);
-        total_ones  : out std_logic_vector(21 downto 0));
+        ones        : in  std_logic_vector(2 downto 0);
+        reset       : in  std_logic;
+        total_edges : out std_logic_vector(23 downto 0);
+        total_ones  : out std_logic_vector(23 downto 0));
   end component;
 
-  signal total_edges : std_logic_vector(21 downto 0) := (others => '0');
-  signal total_ones  : std_logic_vector(21 downto 0) := (others => '0');
-  signal new_limit   : std_logic_vector(17 downto 0) := std_logic_vector(to_unsigned(240000-1,18)); -- 1ms at 240MHz => 1kHz
+  signal total_edges : std_logic_vector(23 downto 0) := (others => '0');
+  signal total_ones  : std_logic_vector(23 downto 0) := (others => '0');
+  signal new_limit   : std_logic_vector(19 downto 0) := std_logic_vector(to_unsigned(N_fast/1000-1,20));
+      -- 1ms in clk ticks, assuming N_fast ticks per seconds.
 
   component snapshot_deltas
+    generic (
+        N_fast      : integer);
     port (
         clk         : in  std_logic;
-        new_limit   : in  std_logic_vector(17 downto 0);
-        total_edges : in  std_logic_vector(21 downto 0);
-        total_ones  : in  std_logic_vector(21 downto 0);
-        delta_edges : out std_logic_vector(21 downto 0);
-        delta_ones  : out std_logic_vector(21 downto 0);
+        new_limit   : in  std_logic_vector(19 downto 0);
+        total_edges : in  std_logic_vector(23 downto 0);
+        total_ones  : in  std_logic_vector(23 downto 0);
+        reset       : in  std_logic;
+        delta_edges : out std_logic_vector(23 downto 0);
+        delta_ones  : out std_logic_vector(23 downto 0);
         new_deltas  : out std_logic);
   end component;
 
-  signal delta_edges : std_logic_vector(21 downto 0) := (others => '0');
-  signal delta_ones  : std_logic_vector(21 downto 0) := (others => '0');
+  signal delta_edges : std_logic_vector(23 downto 0) := (others => '0');
+  signal delta_ones  : std_logic_vector(23 downto 0) := (others => '0');
 
 begin
 
 ------------------------------
 
-i_clk_12_to_240 : clk_12_to_240 port map (
-        CLK_12      => sysclk, 
-        CLK_240     => clk_fast,
-        CLK_240b    => clk_fastb,
-        CLK_240_90  => clk_fast_90,
-        CLK_240_90b => clk_fast_90b);
+i_rad_clocks : rad_clocks generic map (
+          N_fast => N_fast
+          ) port map (
+          CLK_IN       => sysclk, 
+          CLK_FAST     => clk,
+          CLK_FASTb    => clkb,
+          CLK_FAST_90  => clk_90,
+          CLK_FAST_90b => clk_90b);
 
 i_oversample : oversample Port map ( 
-           clk      => clk_fast,
-           clkb     => clk_fastb,
-           clk_90   => clk_fast_90,
-           clk_90b  => clk_fast_90b,
-           sig_in   => HAM_IN,
-           sample  => sample);
+          clk      => clk,
+          clkb     => clkb,
+          clk_90   => clk_90,
+          clk_90b  => clk_90b,
+          sig_in   => HAM_IN,
+          sample   => sample);
 
 i_count_ones_and_edges: count_ones_and_edges port map (
-          clk      => clk_fast,
+          clk      => clk,
           sample   => sample,
           edges    => edges,
           ones     => ones);
 
 i_total_counters: total_counters port map (
-          clk      => clk_fast,
+          clk      => clk,
           edges    => edges,
           ones     => ones,
+          reset    => reset,
           total_edges => total_edges,
           total_ones => total_ones);
           
-i_snapshot_deltas : snapshot_deltas port map (
-                    clk         => clk_fast,
-                    new_limit   => new_limit,
-                    total_edges => total_edges,
-                    total_ones  => total_ones,
-                    delta_edges => delta_edges,
-                    delta_ones  => delta_ones,
-                    new_deltas  => PING_OUT);
+i_snapshot_deltas : snapshot_deltas generic map (
+          N_fast => N_fast
+          ) port map (
+          clk         => clk,
+          new_limit   => new_limit,
+          total_edges => total_edges,
+          total_ones  => total_ones,
+          reset       => reset,
+          delta_edges => delta_edges,
+          delta_ones  => delta_ones,
+          new_deltas  => PING_OUT);
 
--- Don't do this:
--- with DTOG_IN select DATA_OUT <= delta_edges(15 downto 0) when '0', delta_ones(19 downto 4) when others;
--- Leads to asynchronous outputs flips w/o gating, not a good idea
 
-clk_proc: process(clk_fast)
+
+LEDL <= (others => '0'); 
+LEDH <= (others => '1');
+
+
+clk_proc: process(clk)
     begin
-        if rising_edge(clk_fast) then
+        if rising_edge(clk) then
+        
+            if KILLT_IN = '1' then
+              TPWR_OUT <= '0';
+            end if;
         
             if DTOG_IN = '0' then
               DATA_OUT <= delta_edges(15 downto 0);
             else 
-              DATA_OUT <= delta_ones(19 downto 4);
+              DATA_OUT <= delta_ones(19 downto 4); --  20bit mod 4-bit (@ 1GHz, ==> 62.5  MHz So 16bit juuuuuust suffices at 1kHz
             end if;
-            
-            case NS_SEL_IN is
-              when "000"  => new_limit <= std_logic_vector(to_unsigned(240000-1, 18));    --  fs =  1 kHz
-              when "001"  => new_limit <= std_logic_vector(to_unsigned(120000-1, 18));    --  fs =  2 kHz
-              when "010"  => new_limit <= std_logic_vector(to_unsigned( 60000-1, 18));    --  fs =  4 kHz
-              when "011"  => new_limit <= std_logic_vector(to_unsigned( 30000-1, 18));    --  fs =  8 kHz
-              when "100"  => new_limit <= std_logic_vector(to_unsigned( 24000-1, 18));    --  fs = 10 kHz
-              when "101"  => new_limit <= std_logic_vector(to_unsigned( 15000-1, 18));    --  fs = 16 kHz
-              when "110"  => new_limit <= std_logic_vector(to_unsigned( 10000-1, 18));    --  fs = 24 kHz
-              when others => new_limit <= std_logic_vector(to_unsigned(  7500-1, 18));    --  fs = 32 kHz
+
+            case RESET_IN is
+              when '1' => reset <= '1';
+              when others => reset <= '0';
             end case;
             
-
-        end if;
+            case NS_SEL_IN is
+              when "000"  => new_limit <= std_logic_vector(to_unsigned((N_fast / 1000) -1, 20));    --  fs =  1 kHz
+              when "001"  => new_limit <= std_logic_vector(to_unsigned((N_fast / 2000) -1, 20));    --  fs =  2 kHz
+              when "010"  => new_limit <= std_logic_vector(to_unsigned((N_fast / 4000) -1, 20));    --  fs =  4 kHz
+              when "011"  => new_limit <= std_logic_vector(to_unsigned((N_fast / 8000) -1, 20));    --  fs =  8 kHz
+              when "100"  => new_limit <= std_logic_vector(to_unsigned((N_fast /10000) -1, 20));    --  fs = 10 kHz
+              when "101"  => new_limit <= std_logic_vector(to_unsigned((N_fast /16000) -1, 20));    --  fs = 16 kHz
+--                      240MHz
+--              when "110"  => new_limit <= std_logic_vector(to_unsigned(N_fast /24000 -1, 20));    --  fs = 24 kHz
+--              when others => new_limit <= std_logic_vector(to_unsigned(N_fast /32000 -1, 20));    --  fs = 32 kHz--
+--                      250MHz
+              when "110"  => new_limit <= std_logic_vector(to_unsigned((N_fast /25000) -1, 20));    --  fs = 25 kHz
+              when others => new_limit <= std_logic_vector(to_unsigned((N_fast /40000) -1, 20));    --  fs = 40 kHz
+            end case;
+        end if; -- rising_edge
     end process;
+    
 end Behavioral;

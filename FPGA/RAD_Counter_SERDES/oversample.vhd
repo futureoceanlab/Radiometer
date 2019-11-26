@@ -1,3 +1,36 @@
+----------------------------------------------------------------------------------
+--     MIT Future Ocean Lab
+----------------------------------------------------------------------------------
+-- Project:       FOL Radiometer
+-- Version:       Beebe
+-- Design:        RAD_Counter_SERDES
+-- Substrate:     CMod A7 
+----------------------------------------------------------------------------------
+-- Module:        RAD_Counter (Behavioral)
+-- Filename:      RAD_Counter.vhd
+-- Created:       18/8/2019
+-- Author:        Allan Adams <awa@mit.edu>
+-- Guru:          Mike Field <hamster@snap.net.nz>  <=  Many props and thanks!!!
+----------------------------------------------------------------------------------
+-- Description:   This project counts pulses from a fast source and estimates
+--                the area under the curve.  The input signal is a random train
+--                of 20+ns pulses (<50MHz).  We need to count these pulses and
+--                also estimate what fraction of the time the signal is high.
+--                We sample the signal via 4:1 ISERDES running at 250MHz, giving
+--                a 1GHz bitstream-sample of the incoming signal.  We then count
+--                ones in the stream to estimate time-high, and detect 16+ns long
+--                pulses with a simple edge detector.  A running tally is kept of 
+--                both counts.  Count-changes are output over a 16-bit bus 
+--                (DATA_OUT) along with a pulse (PING_OUT) at a user-selectable 
+--                rate (NS_SEL_IN), with a binary input (DTOG_IN) gating a mux
+--                controlling which count appears on the bus.  The time-high 
+--                count is prescaled by 4 bits to avoid overflowing the bus.
+--
+-- Dependencies: 
+-- 
+-- Issues:
+-- 
+----------------------------------------------------------------------------------
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 
@@ -10,7 +43,7 @@ entity oversample is
            clk_90  : in STD_LOGIC;
            clk_90b : in STD_LOGIC;
            sig_in  : in STD_LOGIC;
-           sample : out STD_LOGIC_VECTOR (3 downto 0) := "0000");
+           sample  : out STD_LOGIC_VECTOR (3 downto 0) := "0000" ) ;
 end oversample;
 
 
@@ -106,14 +139,6 @@ architecture Behavioral of oversample is
      SHIFTIN1     => '0',
      SHIFTIN2     => '0'
    );
-
-
-
-
-
-
-
-
 
 -- ISERDES Version
 --------------------------------------------------------
