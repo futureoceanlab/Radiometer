@@ -11,15 +11,6 @@
 #include <SdFs.h>
 #define SD_CONFIG SdioConfig(FIFO_SDIO)
 
-// FS includes of dubious value
-//#include <FsVolume.h>
-//#include <FsFile.h>
-//#include <MinimumSerial.h>
-//#include <FsConfig.h>
-//#include <BlockDeviceInterface.h>
-//#include <BlockDevice.h>
-//#include <SysCall.h>
-
 
 
 
@@ -99,8 +90,9 @@ uint16_t Ns[]={ 1000,
 
 uint8_t Current_Ns = 0; // Ns[Current_Ns]
 
-#define UTC_BUFFER_BYTES  16
-#define PAYLOAD_BYTES    12
+
+#define PAYLOAD_BYTES             12
+#define UTC_BUFFER_BYTES          18
 
 // Global Error Codes
 #define ERR_FILE_WRITE_FAILED     -1
@@ -129,14 +121,14 @@ uint8_t Current_Ns = 0; // Ns[Current_Ns]
     Glocabl Variables: Pins
 
 ------------------------------------------------------------------------------*/
-
-/*       00 01 02 03 04 05 06 07   08 09 10 11 12 13 14 15   16 17 18 19 20 21 22 23   24 25 26 27 28 29 30 31 
- *       
- *  A                   25                     03 04 26 27   28 39                           42    40 41
- *  B    16 17 19 18 49 50               31 32               00 01 29 30 43 46 44 45
- *  C    15 22 23 09 10 13 11 12   35 36 37 38  
- *  D    02 14 07 08 06 20 21 05   47 48    55 53 52 51 54
- *  E                                    56 57                                         33 34 24
+/*  Teensy Pin - to - Port map
+ *        00 01 02 03 04 05 06 07   08 09 10 11 12 13 14 15   16 17 18 19 20 21 22 23   24 25 26 27 28 29 30 31 
+ *      ------------------------------------------------------------------------------------------------------- 
+ *  A  |                 25                     03 04 26 27   28 39                           42    40 41
+ *  B  |  16 17 19 18 49 50               31 32               00 01 29 30 43 46 44 45
+ *  C  |  15 22 23 09 10 13 11 12   35 36 37 38  
+ *  D  |  02 14 07 08 06 20 21 05   47 48    55 53 52 51 54
+ *  E  |                                  56 57                                         33 34 24
  */
 
 // INPUT PINS: CMOD

@@ -353,8 +353,8 @@
 ------------------------------------------------------------------------------*/
 #include "Rad_Teensy.h"
 
-#define CRUISE_NAME "Mesobot / OTZ Cruise, November 2019"
-#define SHIP_NAME  "Neil Armstrong"
+#define CRUISE_NAME "Lindblad / Channel Island, December 2019"
+#define SHIP_NAME  "Of Opportunity"
 #define RAD_NAME "Statler"
 //#define RAD_NAME "Waldorf"
 
@@ -378,13 +378,13 @@ elapsedMillis     mclock;                  // for ms since last Heartbeat
 // GlobalFlags
 volatile int      fHeartbeat    = FALSE;   //
 volatile int      fPayload      = FALSE;   //
-volatile int      fPowerDownNow = FALSE;       //
-volatile int      fStopCount    = TRUE;       //
+volatile int      fPowerDownNow = FALSE;   //
+volatile int      fStopCount    = TRUE;    //
 volatile bool     fHandlePings  = FALSE;   //  In place of dettachInterrupt, set to false
                   
 
-volatile uint8_t  Payload[12];            // x
-uint8_t           UTC_Buffer[18];         // x
+volatile uint8_t  Payload[PAYLOAD_BYTES];            // x
+uint8_t           UTC_Buffer[UTC_BUFFER_BYTES];         // x
 uint32_t*         UTC_Buffer32   = (uint32_t*) &UTC_Buffer[5]; // 
 const size_t      cpu_clicks_per_us =  F_CPU / 1000000;
 
