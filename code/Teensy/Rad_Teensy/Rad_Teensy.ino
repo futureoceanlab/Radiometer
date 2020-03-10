@@ -508,7 +508,7 @@ void BuzzerDot() {
   BuzzerOn();
   while(Buzzer_Millis<200) {};
   BuzzerOff();
-  while(Buzzer_Millis<100) {};
+  while(Buzzer_Millis<300) {};
  }
 
 void BuzzerDash() {
@@ -516,7 +516,7 @@ void BuzzerDash() {
   BuzzerOn();
   while(Buzzer_Millis<800) {};
   BuzzerOff();
-  while(Buzzer_Millis<100) {};
+  while(Buzzer_Millis<900) {};
  }
 
 void errorHalt(const char* msg) {
