@@ -693,9 +693,9 @@ void setup_Sensors() {
 //
 // Initialize ADIS16209 Tilt Sensor
   if (tiltsensor.setupSensor() == true) {
-    SERIALOUT.println("ADIS16209 set up successfully");
+    SERIALN.println("ADIS16209 set up successfully");
   }else{
-    SERIALOUT.println("ADIS16209 failed to set up");
+    SERIALN.println("ADIS16209 failed to set up");
   }
   tiltsensor.transceiveSensor(XINCL_OUT);
 //  delayMicroseconds(40);
