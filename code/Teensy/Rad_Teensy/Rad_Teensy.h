@@ -9,7 +9,15 @@
 // SdFs
 //#include <FreeStack.h>
 #include <SdFs.h>
-#define SD_CONFIG SdioConfig(FIFO_SDIO)
+#define   SD_CONFIG SdioConfig(FIFO_SDIO)
+
+// ADIS16209
+#include <Arduino.h>
+//#include "FOL-TMP117.h"
+#include "FOL-ADIS16209.h"
+
+// MTP USB
+//#include <MTP.h>
 
 
 
@@ -52,8 +60,8 @@
 #define ONE_MiB        1048576
 #define ONE_GiB     1073741824
 
-//#define PRE_ALLOCATE_MiBS    128  // 128MiB  
-#define PRE_ALLOCATE_MiBS    256  // 256MiB  
+#define PRE_ALLOCATE_MiBS    128  // 128MiB  
+//#define PRE_ALLOCATE_MiBS    256  // 256MiB  
 //#define PRE_ALLOCATE_MiBS    512  // 512MiB  
 //#define PRE_ALLOCATE_MiBS   1024  // 1GiB
 //#define PRE_ALLOCATE_MiBS   2048  // 2GiB
@@ -63,7 +71,7 @@
 //    At 10kHz, we eat 216MB per hour 
 //    Planned dives are all 6 hours long, plus ~ 2 hours on either end
 //    ==> 2.5GB should suffice.
-#define N_Files 10
+#define N_Files 2
 #define FILENAME_ROOT "FOL_WHOI_Radiometer_"
 
 const size_t File_Length = PRE_ALLOCATE_MiBS * ONE_MiB;
@@ -90,9 +98,13 @@ uint16_t Ns[]={ 1000,
 
 uint8_t Current_Ns = 0; // Ns[Current_Ns]
 
+// Empirically, 1us = 60 * 16.7ns sufficed;  we should be able to get away with a lot less
+//#define DTOG_SKIP_16ns_Clicks           60
+#define DTOG_SKIP_16ns_Clicks           4
 
 #define PAYLOAD_BYTES             12
 #define UTC_BUFFER_BYTES          18
+#define PAYLOAD_DELAY_MILLIS      500
 
 // Global Error Codes
 #define ERR_FILE_WRITE_FAILED     -1
@@ -107,13 +119,83 @@ uint8_t Current_Ns = 0; // Ns[Current_Ns]
 #define ERR_MSG_FILE_OPEN_FAILED      "File Open Failed!"
 #define ERR_MSG_FILE_PREALLOC_FAILED  "File Pre-Allocation Failed"
 
-#define LOG_DATA 1
-#define RUN_CLI  2
+#define CMD_LOG_DATA 1
+#define CMD_MTP_USB  2
+#define CMD_SHUTDOWN 3
+#define CMD_TRYAGAIN 4
 
 #define TRUE  (1==1)
 #define FALSE (!TRUE)
 
-#define FOL_RAD_VV 0.1              //  Radiometer Software Version
+#define FOL_RAD_VV 0.2              //  Radiometer Software Version
+
+
+/*------------------------------------------------------------------------------ 
+
+    Glocabl Defines: Timing
+
+------------------------------------------------------------------------------*/
+
+#define NOP1 "nop\n\t"
+#define NOP2 "nop\n\t""nop\n\t"
+#define NOP3 "nop\n\t""nop\n\t""nop\n\t"
+#define NOP4 "nop\n\t""nop\n\t""nop\n\t""nop\n\t"
+#define NOP5 "nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t"
+#define NOP6 "nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t""nop\n\t"
+
+#define P1 __asm__(NOP1)
+#define P2 __asm__(NOP2)
+#define P3 __asm__(NOP3)
+#define P4 __asm__(NOP4)
+#define P5 __asm__(NOP5)
+#define P6 __asm__(NOP6)
+
+
+// P1-5 are 100-500 ns pauses, tested with an oscilloscope (2 second
+// display persistence) and a Teensy 3.2 compiling with
+// Teensyduino/Arduino 1.8.1, "faster" setting
+#if F_CPU == 240000000
+#define PAUSE_10ns  __asm__()
+#define PAUSE_20ns  __asm__()
+#define PAUSE_30ns  __asm__()
+#define PAUSE_40ns  __asm__()
+#define PAUSE_50ns  __asm__()
+#define PAUSE_60ns  __asm__()
+#define PAUSE_70ns  __asm__()
+#define PAUSE_80ns  __asm__()
+#define PAUSE_90ns  __asm__()
+#define PAUSE_100ns __asm__()
+%#define P5 __asm__(NOP6 NOP6 NOP6 NOP6 NOP6 NOP6 NOP6 NOP4 NOP3)
+#endif
+
+
+
+// P1    6.1 ns  6.1  
+// P2   11.8 ns  5.9
+// P3   17.4 ns  5.8
+// P4   22.9 ns  5.7
+// P5   28.5 ns  5.7
+// P6   34.0 ns  5.7 ASYMPTOPE TO 5.555555 = 1000 / 180
+#if F_CPU == 180000000
+#define PAUSE_10ns  __asm__(NOP2) // 11.111
+#define PAUSE_20ns  __asm__(NOP4) // 22.222
+#define PAUSE_30ns  __asm__(NOP5) // 27.777
+#define PAUSE_40ns  __asm__(NOP6 NOP1) // 38.885
+#define PAUSE_50ns  __asm__(NOP6 NOP3) // 49.995
+#define PAUSE_60ns  __asm__(NOP6 NOP5) // 61.105
+#define PAUSE_70ns  __asm__(NOP6 NOP6 NOP1) // 72.215
+#define PAUSE_80ns  __asm__(NOP6 NOP6 NOP3) // 83.325
+#define PAUSE_90ns  __asm__(NOP6 NOP6 NOP4) // 88.88
+#define PAUSE_100ns __asm__(NOP6 NOP6 NOP6) // 100
+//#define P1 __asm__(NOP4 NOP4)
+//#define P2 __asm__(NOP6 NOP6 NOP6)
+//#define P3 __asm__(NOP6 NOP6 NOP6 NOP6 NOP3)
+//#define P4 __asm__(NOP6 NOP6 NOP6 NOP6 NOP6 NOP4 NOP4)
+//#define P5 __asm__(NOP6 NOP6 NOP6 NOP6 NOP6 NOP6 NOP6 NOP4 NOP3)
+#endif
+
+#define PAUSE P1
+
 
 
 /*------------------------------------------------------------------------------ 
@@ -142,7 +224,9 @@ const byte pin_PwrDwn    =  38; //  C11  HIGH: Power is going down in 10s, burn 
 
 // Output Pins
 const byte pin_NsSel[]   = {24,25,28}; // E26 A05 A16   Binary NS select lines 
-const byte pin_PWM[]     = {35,36,37}; // C08 C09 C10   PWM outtput to stepper motors
+// const byte pin_PWM[]     = {35,36,37}; // C08 C09 C10   PWM outtput to stepper motors
+const byte pin_PWM[]     = {35,36}; // C08 C09   PWM outtput to stepper motors
+const byte pin_Buzzer    = 37;  // C10  HIGH: Buzzer On                  LOW: Buzzer Off (Prev. 3rd PWM pin)
 const byte pin_Dtog      = 33;  // E24  HIGH: request Pulse count        LOW: request Cycle count
 const byte pin_Reset     = 17;  // B01  HIGH: reset FPGA counters        LOW: enable counters
 const byte pin_HamPwr    =  4;  // A13  HIGH: Enable Ham Load Switch     LOW: Disable 

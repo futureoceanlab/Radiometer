@@ -13,30 +13,32 @@
  Description:   RAD_Teensy is a Teensy 3.6 executable that operates the FOL/WHOI 
                 Radiometer.  Its key responsibilities are:
  
- 1. Capture & timestamp raw photon counts at 1-32kHz from the Hamamatsu sensor
-    via the Cmod A7 Front End over Ports C and D, plus I2C & SPI sensor data
+ 1. Capture & timestamp raw photon counts at 1-40kHz from the Hamamatsu sensor
+    via 1GHz Cmod A7 Front End over Ports C and D, plus I2C & SPI sensor data
  2. Store data to non-volatile storage (SD card)
- 3. Provide serial interface for control and heartbeat
- 4. Don't fuck up
+ 3. Control filter cassette stepper motors (depricated for now) 
+ 4. Provide serial interface for control and heartbeat
+ 5. Don't fuck up
  
  In a little more detail.....
 
  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  
    A. The Hamamatsu & Xilinx front end:
 
- The FOL/DSL Radiometer is designed to count photons throughout the first 800m
- of the open ocean.  At its heart is an array of geiger-mode photo-diodes 
- capable of resolving individual photon hits with great precision. 
+ The FOL/DSL Radiometer is designed to count solar photons throughout the 
+ first 800m of the open ocean (and bioluminescent photons much deeper).  
  
- The sensor, a Hamamatsu C13366-1350GD, outputs digital signals over SMB of
- duration 20ns and amplitude ~3.7V. More precisely, there is a 40% chance 
- (quantum efficiency 0.4) that any single photon hitting the sensor will trigger 
- a geiger-mode voltage spike of Raleigh-ish form (a sudden rise and a gradual 
- fall-off) out of the raw sensor.  The Hamamatsu module feeds this raw signal 
- to a fast comparator which filters this complex pulse into a clean square 
- pulse about 20ns wide with rise and fall times of under 2ns.  We can thus 
- measure the incident photon flux by counting pulses in the output of the 
- comparator and multitplying by 2.5 to account for the missed 60% of photons.
+ The heart of the Radiometer is an array of geiger-mode photo-diodes capable of 
+ resolving individual photon hits precisely and reliably. The Hamamatsu sensor,
+ C13366-1350GD, outputs digital signals over SMB of duration 20ns and amplitude 
+ ~3.7V. More precisely, there is a 40% chance (quantum efficiency 0.4) that any 
+ single photon hitting the sensor will trigger a geiger-mode voltage spike of 
+ Raleigh-ish form (a sudden rise and a gradual fall-off) out of the raw sensor.  
+ The Hamamatsu module feeds this raw signal to a fast comparator which filters 
+ this complex pulse into a clean square pulse about 20ns wide with rise and 
+ fall times of under 2ns.  We can thus measure the incident photon flux by 
+ counting pulses in the output of the comparator and multitplying by 2.5 to 
+ account for the missed 60% of photons.
 
  Two effects limit the linearity of this signal.  First, as with any geiger-
  mode device, there is an irreducible dark noise due to spontaneous 
@@ -63,42 +65,42 @@
  At sufficiently high flux (~25M cps), adding another photon is more likely 
  to create a collision than a new pulse -- *increasing* the incident flux
  thus actually *decreases* the number of pulses coming out of the comparator. 
- Eventually the sensor fully saturates (~50MHz), with all pixels constantly 
+ Eventually the sensor fully saturates (~50M cps), with all pixels constantly 
  triggered and the comparator permanently high.
 
  On paper, that's annoying: the map between pulse count and infered photon 
- flux is doubly-valued, meaning we  need to be careful to stay (well) within
+ flux is doubly-valued, meaning we need to be careful to stay (well) within
  the almost-linear low-flux regime to be able to reliably infer the incident 
  fluxes. In the ocean, unfortuantely, that's just not possible: thanks to 
  all sorts of optical "noise" in the ocean (I'm looking at you, biolumin-
- escent squid) it's easy for the incident flux to  pop over the maximum of 
+ escent squid) it's easy for the incident flux to pop over the maximum of 
  that curve and ruin any chance we have of nailing down the ambient flux.
 
- The answer is inescapable: it's not enough to just count pulses, we need to 
- duration of the pulses too.  More generously,  we need a  good  coordinate 
- near the  maximum of the count curve.  This turns out to be non-trivial. 
+ The answer is inescapable: it's not enough to just count pulses, we need  
+ the duration of the pulses too. More generously, we need a good coordinate 
+ near the maximum of the count curve.  This turns out to be non-trivial. 
 
  The approach we have taken is somewhat brute-force: rather than detect 
  rising edges in the comparator output, we sample the comparator at very 
- high frequency (480 or 960 MHz), allowing us to both count pulses (which 
+ high frequency (1 GHz ~ 1 / ns), allowing us to both count pulses (which 
  provides a good coordinate in the linear regimes at both high and low 
  luminosity) as well as the fraction of the time that the output is high. 
  Fortunately the precise timing of individual collisions doesn't matter, 
  just the statistics, which makes the data problem easy enough to handle 
  with a small FPGA (doing the high-speed sampleing and counting) and 
  microcontroller (sampling the FPGA counts at low speed and storing to
- disk).  Concretetly, we use:
+ memory).  Concretetly, we use:
  
-    * a Cmod A7 breakout for the Xilinx Artix-7 FPGA running at 240MHz 
+    * a Cmod A7 breakout for the Xilinx Artix-7 FPGA running at 250MHz 
       and sampling the comparator output via 2- or 4-bit SERDES inputs, 
       sampling that datastream to count pulses and time spent high, then
       storing the results in fast counters whose values it outputs over
-      16-bit bus (GPIO pins) at 1 to 32 kHz to:
+      16-bit bus (GPIO pins) at 1 to 40 kHz to:
       
-    * a Teensy 3.6 also running at 240MHz that reads the two 16-bit data
+    * a Teensy 3.6 running at 240MHz that reads the two 16-bit data
       streams into a circular FIFO buffer which is subsequently written 
       to SD in the background.  The Teensy also handles sensors, Serial 
-      comms, and general system control.
+      comms, filter cassette motors, and general system control.
 
  The upshot is that we can infer from these two data streams (pulses, 
  fraction high) the incident photon flux to within a few percent or 
@@ -113,7 +115,7 @@
     PING_OUT       Cmod-->Teensy   Falling edge == new data available
       -- out
     DTOG_IN        Teensy-->Cmod   H: Data = Pulses;  L: Data = Time High
-    NS_SEL_IN[3]   Teensy-->Cmod   Select sampling rate (1-32kHz)
+    NS_SEL_IN[3]   Teensy-->Cmod   Select sampling rate (1-40kHz)
 
 
  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
@@ -131,21 +133,21 @@
        8        48     172.8       4.14
        10       60     216.0       5.18
        16       96     345.6       8.29
-       24      144     518.4      12.44
-       32      192     691.2      16.59
+       25      150     540.0      12.94
+       40      240     864.0      20.70
  Note that this does not include any additional payload (sensor data and UTC 
  recorded a few times per second) so this is a minor undercount by < 1%.  Said 
  more succinctly, tthe rates of interest lie within these ranges:
 
-    6 to 192 kB/s      22 to 691 MB/hr     0.5 to 17 GB/day 
+    6 to 240 kB/s      22 to 864 MB/hr     0.5 to 21 GB/day 
 
  We could, of course, sample faster if there's a scientific reason to do so.
  The fundamental speed limitation here is how precisely we can do the sampling
  timing, but pushing up to 64kHz should be doable.  
  
- By default we'll sample at 10kHz, giving us a default data rate of about 
+ By default we'll sample at 1kHz, giving us a default data rate of about 
  
-       60 Kb/s            216 MB/hr          5.18 GB/day
+       6 KB/s            22 MB/hr          0.52 GB/day
  
  In  the scope of things, that's a leisurely data rate for an SD card -- the 
  SD interface we're using can handle 18MB/s; we are well within envelope! That 
@@ -206,7 +208,7 @@
  it enables the Hamamatsu load switch.  
 
  Shutting down is more complex.  The shutdown is initiated by shorting two pins 
- on the connector.  This (a) puls a pin low on the Teensy and (b) gives a 10s
+ on the connector.  This (a) pulls a pin low on the Teensy and (b) gives a 10s
  time window for everything to shutdown gracefully.  The Teensy then terminates
  its loops, saves files, disables the Hamamatsu load switch,  and then shuts 
  itself down.  When the powerbus hits the end of the grace period, the bus is 
@@ -317,22 +319,22 @@
     1. PING_ISR: respond to ping by reading data and storing to RingBuffer
     
           Record new ping time
-          Set Dtog High
-          Read 16-bit businto local buffer
-          Set Dtog Low
           Read 16-bit bus (8 in PortC, 8 in PortD) into local buffer
+          Set Dtog Low, wait a few cycles
+          Read 16-bit bus into local buffer
+          Set Dtog High
           Write 2B us-since-last-ping into local buffer
           Write local buffer into RingBuffer
           If new payload is available (sensor, etc) write to RingBuffer
-            Payload: 12B chunk with !0!0 2B Tilt 2B Incl  !0!0  2B Rot 2B Temp
+            Payload: 12B chunk with !0!0 !0!0 X_incl Y_incl !0!0 !0!0 
           Decriment Ping_Count
-          If 1s of Pings have gone by, add UTC to local buffer:
-               4B ASCII @@??
+          If 1s worth of Pings have gone by, add UTC to local buffer:
+               5B ASCII @@??
                4B UTC
                4B ElapsedMillis
-               4B ASCII ??@@
-               Ping_Count = Ns;
-               Write local buffer into RingBuffer
+               5B ASCII ??@@
+             Ping_Count = Ns;
+             Write local buffer into RingBuffer
 
     3. In main loop:
           If an RU of data are abaiable in the Ring buffer, write 1RU to SD
@@ -353,42 +355,75 @@
 ------------------------------------------------------------------------------*/
 #include "Rad_Teensy.h"
 
-#define CRUISE_NAME "Lindblad / Channel Island, December 2019"
-#define SHIP_NAME  "Of Opportunity"
+/*         Things Left to do
+ * 
+ * A. USB Access to SD card  -- BUG!!!
+ * B. Motor Controller
+ * 
+ */
+
+//#define CRUISE_NAME "Lindblad / Channel Island, December 2019"
+//#define SHIP_NAME  "Of Opportunity"
+
+#define CRUISE_NAME "WHOI OTZ, March 2020"
+#define SHIP_NAME  "Armstrong"
+
 #define RAD_NAME "Statler"
 //#define RAD_NAME "Waldorf"
+
+#define SERIALN Serial1
+//#define ANNOUNCE_PINGS 
 
 
 /*    Gloabl Variables: Files and Buffers      
 */
+FsFile            DataFile[N_Files];       // 
+FsFile            MetaFile;                // 
+SdFs              sd;                      //
 
-SdFs              sd;                      // 
-FsFile            bfile[N_Files];          // 
-FsFile            mfile;                   // 
+int               CurrentFile    = 0;      // 
 
-int               CurrentFile = 0;         // 
-
-size_t            RUs_Written = 0;         //
-size_t            LastSec_TimeHi=0,        //
-                  LastSec_Pulses=0;        // 
+size_t            RUs_Written    = 0;      //
+uint32_t          LastSec_uSecs  = 0,      //
+                  LastSec_TimeHi = 0,      //
+                  LastSec_Pulses = 0;      // 
 
 //Global Clocks
-elapsedMillis     mclock;                  // for ms since last Heartbeat 
+elapsedMillis     Heartbeat_MilliClock;    // for ms since last Heartbeat 
+
 
 // GlobalFlags
-volatile int      fHeartbeat    = FALSE;   //
-volatile int      fPayload      = FALSE;   //
-volatile int      fPowerDownNow = FALSE;   //
-volatile int      fStopCount    = TRUE;    //
+volatile bool     fHeartbeat    = FALSE;   //
+volatile bool     fPayload      = FALSE;   //
+volatile bool     fPowerDownNow = FALSE;   //
+volatile bool     fStopCount    = TRUE;    //
 volatile bool     fHandlePings  = FALSE;   //  In place of dettachInterrupt, set to false
-                  
 
+
+// ADIS 16209 variables
+// SPI1.PortSelect(...)
+// ADIS16209 tiltsensor(pin_SPI1_CS,&SPI1); // Initialize tilt sensor
+ADIS16209 tiltsensor; // Initialize tilt sensor
+
+//// TMP 117 Variables
+//TMP117 tempsensor; // Initalize sensor
+//uint16_t rawTemp;
+//float TempC;
+
+// Buzzer State
+int BuzzerState = LOW;
+
+// Buffers and timing
 volatile uint8_t  Payload[PAYLOAD_BYTES];            // x
+volatile uint32_t* Payload32 = (uint32_t*) &Payload[4];
+volatile uint16_t* Payload16 = (uint16_t*) &Payload[8];
 uint8_t           UTC_Buffer[UTC_BUFFER_BYTES];         // x
 uint32_t*         UTC_Buffer32   = (uint32_t*) &UTC_Buffer[5]; // 
 const size_t      cpu_clicks_per_us =  F_CPU / 1000000;
-
+const size_t      cpu_clicks_per_16ns =  F_CPU / 60000000;
+const size_t      DTOG_cycles_delay = DTOG_SKIP_16ns_Clicks * cpu_clicks_per_16ns;
 const size_t      size_Ring = N_BUFS * SIZE_RU;    //
+
 MAKE_RING_BUFFER(TeensyRing, size_Ring);          // 
 
 
@@ -397,10 +432,10 @@ MAKE_RING_BUFFER(TeensyRing, size_Ring);          //
 */
 
 int Write_Ring_to_SD(void) {  // DONE
-    if (bfile[CurrentFile].write(TeensyRing._ring + TeensyRing.Tail, SIZE_RU) \
+    if (DataFile[CurrentFile].write(TeensyRing._ring + TeensyRing.Tail, SIZE_RU) \
                                                                   != SIZE_RU) {
         Serial.println("file.write failed");
-        bfile[CurrentFile].close();
+        DataFile[CurrentFile].close();
         return(ERR_FILE_WRITE_FAILED);  // if file write fails, panic with -1
     }
     
@@ -410,14 +445,14 @@ int Write_Ring_to_SD(void) {  // DONE
     interrupts();
 
     if((++RUs_Written) * SIZE_RU >= File_Length) {
-      bfile[CurrentFile].close();
+      DataFile[CurrentFile].close();
       if(++CurrentFile==N_Files) return(ERR_OUT_OF_FILES);
       RUs_Written = 0;
     }
     return(0);
 }
 
-int Write_Data_to_Ring(uint8_t *data, uint8_t data_len) {  // DONE
+int Write_Data_to_Ring(uint8_t *data, uint8_t data_len) {  // DONE1
 /*------------------------------------------------------------------------------ 
 
     Write_Data_to_Ring  :  Inserts data into the Ring
@@ -464,17 +499,53 @@ int Write_Data_to_Ring(uint8_t *data, uint8_t data_len) {  // DONE
 /*      Helper Functions
  */
 
+void BuzzerOn()  {digitalWrite(pin_Buzzer,HIGH);};
+
+void BuzzerOff() {digitalWrite(pin_Buzzer,LOW);};
+
+void BuzzerDot() {
+  elapsedMillis Buzzer_Millis;    // for ms since last Heartbeat 
+  BuzzerOn();
+  while(Buzzer_Millis<200) {};
+  BuzzerOff();
+  while(Buzzer_Millis<100) {};
+ }
+
+void BuzzerDash() {
+  elapsedMillis Buzzer_Millis;    // for ms since last Heartbeat 
+  BuzzerOn();
+  while(Buzzer_Millis<800) {};
+  BuzzerOff();
+  while(Buzzer_Millis<100) {};
+ }
+
 void errorHalt(const char* msg) {
-  Serial1.print("Error: ");
-  Serial1.println(msg);
+  SERIALN.print("Error: ");
+  SERIALN.println(msg);
   if (sd.sdErrorCode()) {
     if (sd.sdErrorCode() == SD_CARD_ERROR_ACMD41) {
-      Serial1.println("Try power cycling the SD card.");
+      SERIALN.println("Try power cycling the SD card.");
     }
-    printSdErrorSymbol(&Serial1, sd.sdErrorCode());
-    Serial1.print(", ErrorData: 0X");
-    Serial1.println(sd.sdErrorData(), HEX);
+    printSdErrorSymbol(&SERIALN, sd.sdErrorCode());
+    SERIALN.print(", ErrorData: 0X");
+    SERIALN.println(sd.sdErrorData(), HEX);
   }
+  
+  BuzzerDot();
+  BuzzerDot();
+  BuzzerDot();
+  BuzzerDash();
+  
+  BuzzerDot();
+  BuzzerDot();
+  BuzzerDot();
+  BuzzerDash();
+  
+  BuzzerDot();
+  BuzzerDot();
+  BuzzerDot();
+  BuzzerDash();
+  
   while (true) {} 
 }
 
@@ -535,6 +606,7 @@ void setup_GPIO() { // DONE
 //  pinMode(pin_PWM[0]   ,OUTPUT);  
 //  pinMode(pin_PWM[1]   ,OUTPUT);  
 //  pinMode(pin_PWM[2]   ,OUTPUT);  
+  pinMode(pin_Buzzer   ,OUTPUT);  
   pinMode(pin_Dtog     ,OUTPUT);   
   pinMode(pin_Reset    ,OUTPUT);   
   pinMode(pin_HamPwr   ,OUTPUT);   
@@ -548,37 +620,37 @@ void setup_GPIO() { // DONE
 //  digitalWrite(pin_PWM[0]   ,LOW);
 //  digitalWrite(pin_PWM[1]   ,LOW);
 //  digitalWrite(pin_PWM[2]   ,LOW);
+  digitalWrite(pin_Buzzer   ,LOW); // Start with counter in reset mode
+  digitalWrite(pin_Dtog     ,LOW);  // Count or TimeHi? Start LOW.
   digitalWrite(pin_Reset    ,HIGH); // Start with counter in reset mode
   digitalWrite(pin_HamPwr   ,LOW);  // Start with Ham off; switch High to turn on
-  digitalWrite(pin_Dtog     ,LOW);  // Count or TimeHi? Start LOW.
   digitalWrite(pin_CAN0_Lo  ,HIGH); // Low power mode == Pin --> VCC
   digitalWrite(pin_KillMePls,LOW);  // Don't tell Cmod to kill me!!
   
-
-  Serial1.println(" ");
-  Serial1.println("GPIO Ports initialized...  ");
+  SERIALN.println(" ");
+  SERIALN.println("GPIO Ports initialized...  ");
 
 } // setup_GPIO()
 
 void setup_Interfaces() {  // DONE
 // ------------------------------------------------------------ 
-//   Start Serial1, Query data rate, set Ns, and start Hamamatsu
-//
+//   Start SERIALN, Query data rate, set Ns, and start Hamamatsu
 
-  Serial1.setTX(pin_Ser1_TX);
-  Serial1.setRX(pin_Ser1_RX);
-  Serial1.begin(115200,SERIAL_8N1);
-  Serial1.println("\n\n\nRAD_Counter_Teensy Reporting for Service.");
+  SERIALN.setTX(pin_Ser1_TX);
+  SERIALN.setRX(pin_Ser1_RX);
+  SERIALN.begin(115200,SERIAL_8N1);
+//  SERIALN.begin(115200);
+  SERIALN.println("\n\n\nRAD_Counter_Teensy Reporting for Service.");
 
-  while (!Serial1) { };
+  while (!SERIALN) { };
 
 // RTC  -- after Serial, before SD
   // set the Time library to use Teensy 3.0's RTC to keep time
   setSyncProvider(getTeensy3Time);
   if (timeStatus()!= timeSet) {
-    Serial1.println("Unable to sync with the RTC");
+    SERIALN.println("Unable to sync with the RTC");
   } else {
-    Serial1.println("RTC has set the system time");
+    SERIALN.println("RTC has set the system time");
   }
   // Set FS Timestamp callback
   FsDateTime::callback = dateTime;
@@ -587,36 +659,55 @@ void setup_Interfaces() {  // DONE
 
 // SPI1
 
+//  SPI1.setMOSI(pin_SPI1_MOSI);
+//  SPI1.setMISO(pin_SPI1_MISO);
+//  SPI1.setSCK(pin_SPI1_SCK);
+//  //SPI.setCS(pin_SPI1_CS);
+//  //pinMode (pin_SPI1_CS, OUTPUT);
+//  SPI1.begin();
+
 // CANBUS: Can0 on 29/30
 
 // SD via SdFs
 
 #if !ENABLE_DEDICATED_SPI
-  Serial1.println(F(
+  SERIALN.println(F(
     "\nFor best performance edit SdFsConfig.h\n"
     "and set ENABLE_DEDICATED_SPI nonzero")); 
 #endif  // !ENABLE_DEDICATED_SPI
   // Initialize SD.
   if (!sd.begin(SD_CONFIG)) {
-      Serial1.println("SD Initialization failed!!");
+      SERIALN.println("SD Initialization failed!!");
 //      return(-1);
   }
 
 }
 
+void setup_Sensors() {
+// Initialize TMP117 I2C Temperature Sensor
+//  if (tempsensor.setupSensor() == true) {
+//    SERIALOUT.println("TMP117 set up successfully");
+//  }else {
+//    SERIALOUT.println("TMP117 failed to set up");
+//  }
+//
+// Initialize ADIS16209 Tilt Sensor
+  if (tiltsensor.setupSensor() == true) {
+    SERIALOUT.println("ADIS16209 set up successfully");
+  }else{
+    SERIALOUT.println("ADIS16209 failed to set up");
+  }
+  tiltsensor.transceiveSensor(XINCL_OUT);
+//  delayMicroseconds(40);
+}
+
 void setup_Buffers() { // DONE
   for(int i=0;i<12;++i) {
-    Payload[i] = 0xFF;
+    Payload[i] = 0x00;
   }
   for(int i=0;i<18;++i) {
     UTC_Buffer[i] = 0xFF;
   }
-
-//  Serial1.println(" ");
-//  Serial1.print("Ring Dimension = ");
-//  Serial1.println(size_Ring);
-//  Serial1.print("FreeStack: ");
-//  Serial1.println(FreeStack());
 
 }
 
@@ -629,48 +720,70 @@ void setup_Timers() {
 
 
 
+
 /*      CLI functions
  */
 
-int  Initial_CLI() {
+int  Main_CLI() {
   uint32_t m;
-  char c,ns;
+  char c='0',ns;
 
-  do { delay(20); } while (Serial1.available() && Serial1.read());
-  Serial1.println(" ");
-  Serial1.println("Type '1' to log data");
-  Serial1.println("     '2' to enter  setup");
+  BuzzerDot();
+  BuzzerDash();
+  BuzzerDot();
+  BuzzerDash();
+  BuzzerDot();
+  BuzzerDash();
+  
+  do { delay(20); } while (SERIALN.available() && SERIALN.read());
+  SERIALN.println(" ");
+  SERIALN.println("Type '1' to Set Sample Rate and Start Logging");
+  SERIALN.println("     '2' to Enter MTP USB mode");
+  SERIALN.println("     '3' to Shutdown");
+  SERIALN.println("Logging will otherwise begin automatically at 1kSample/s");
 
   m = micros();
-  while (!Serial1.available() && (micros()-m < 30*ONE_MILLION)) {  }
-  if(!Serial1.available()) { // Unattended, start logging data at default rate: 
+  while (!SERIALN.available() && (micros()-m < 30*ONE_MILLION)) {  }
+
+  // IF NO INPUT FROM USER, LOG DATA AUTOMATICALLY
+  if(!SERIALN.available()) { // Unattended, start logging data at default rate: 
+    BuzzerDash();
+    BuzzerDash();
+    BuzzerDash();
     Current_Ns = 0;
     Set_Ns();
-    return(LOG_DATA);
+    return(CMD_LOG_DATA);
   } 
+
   // if  we get here, there's  serial data:
-  c = Serial1.read();
-  
+  c = SERIALN.read();
+
+  // Set NS
   if (c =='1') {
 
-    do { delay(20); } while (Serial1.available() && Serial1.read());
-    Serial1.println(" ");
-    Serial1.println("Select Data Sampling Rate:");
-    Serial1.println("Type '0' for  1 kHz");
-    Serial1.println("Type '1' for  2 kHz");
-    Serial1.println("Type '2' for  4 kHz");
-    Serial1.println("Type '3' for  8 kHz");
-    Serial1.println("Type '4' for 10 kHz");
-    Serial1.println("Type '5' for 16 kHz");
-//    Serial1.println("Type '6' for 24 kHz"); // 240MHz
-//    Serial1.println("Type '7' for 32 kHz"); // 240MHz
-    Serial1.println("Type '6' for 25 kHz"); // 250MHz
-    Serial1.println("Type '7' for 40 kHz"); // 250MHz
+    do { delay(20); } while (SERIALN.available() && SERIALN.read());
+    SERIALN.println(" ");
+    SERIALN.println("Select Data Sampling Rate:");
+    SERIALN.println("Type '0' for  1 kHz");
+    SERIALN.println("Type '1' for  2 kHz");
+    SERIALN.println("Type '2' for  4 kHz");
+    SERIALN.println("Type '3' for  8 kHz");
+    SERIALN.println("Type '4' for 10 kHz");
+    SERIALN.println("Type '5' for 16 kHz");
+//    SERIALN.println("Type '6' for 24 kHz"); // 240MHz
+//    SERIALN.println("Type '7' for 32 kHz"); // 240MHz
+    SERIALN.println("Type '6' for 25 kHz"); // 250MHz
+    SERIALN.println("Type '7' for 40 kHz"); // 250MHz
 
     m =  micros();
-    while (!Serial1.available() && (micros()-m < 30*ONE_MILLION)) {  }
-    if(!Serial1.available()) { ns = '0';} // No reply, use default rate
-    else {ns = Serial1.read();} // Use specified rate
+    while (!SERIALN.available() && (micros()-m < 30*ONE_MILLION)) {  }
+    if(!SERIALN.available()) { // No reply, use default rate
+      BuzzerDash();
+      BuzzerDash();
+      BuzzerDash();
+      ns = '0';
+     } 
+    else {ns = SERIALN.read();} // Use specified rate
     
     switch(ns)  {
       case '1': Current_Ns = 1; break;
@@ -683,55 +796,42 @@ int  Initial_CLI() {
       default:  Current_Ns = 0; break;
     } // Switch(ns)
 
-    Serial1.println(" ");
-    Serial1.print("Proceeding with Sampling Rate ");
-    Serial1.print(Ns[Current_Ns]);  
-    Serial1.println("Hz");
+    SERIALN.println(" ");
+    SERIALN.print("Proceeding with Sampling Rate ");
+    SERIALN.print(Ns[Current_Ns]);  
+    SERIALN.println("Hz");
 
     Set_Ns();
-    return(LOG_DATA);    
+    
+    BuzzerDot();
+    BuzzerDot();
+    BuzzerDot();
+    BuzzerDot();
+    BuzzerDot();
+    BuzzerDot();
+    
+    return(CMD_LOG_DATA);    
+  }
+
+  // Enter MTP USB mode to allow data to be pulled off uSD card 
+  else if(c=='2') {
+    return(CMD_MTP_USB);// Enter MTP USB Mode
+  }
+
+  // Enter MTP USB mode to allow data to be pulled off uSD card 
+  else if(c=='3') {
+   return(CMD_SHUTDOWN); 
   }
 
   // if we get here, go to CLI
-  Current_Ns = 0;
-  Set_Ns();
-  return(RUN_CLI);
+  return(CMD_TRYAGAIN);
 }
-
-void Main_CLI() {
-  /* Things the user might want to do:
-   */  
-  /*  USB Pull Data
-   *  
-   */
-  /*  Format SD
-   *  
-   */
-  /*  Change Settings
-   *  
-   *  
-   * 
-   */
-  
-}
-
 
 
 /*      Count Cycle Functions
  */
 
-int  Open_Files() { // DONE
-/* ------------------------------------------------------------ 
-//  Build filestructure: 
-//        i. Preallocate SD files: 
-//           1 hour at max 32kHz data rate = 691 MB
-//           ==> Filesize = 1GB
-//           1 day at 10kHz nominal = 5.2GB
-//           ==> Preallocate array of 6 files
-//        ii. Write global headers  (first 16kB = header)
-//
-*/
-  
+int  Open_Files() { // DONE  
   char              Filename_Root[128],
                     Filename_Text[128],
                     Filename_Num[16],
@@ -763,88 +863,89 @@ int  Open_Files() { // DONE
 // Open & Preallocate Files
 
   for(int i=0;i<N_Files;++i) {
-    if(!bfile[i].open(Filename[i], O_WRITE | O_CREAT | O_TRUNC)) { 
+    if(!DataFile[i].open(Filename[i], O_WRITE | O_CREAT | O_TRUNC)) { 
       errorHalt(ERR_MSG_FILE_OPEN_FAILED); 
      }
-    if(!bfile[i].preAllocate(PRE_ALLOCATE_MiBS * ONE_MiB))  
+    if(!DataFile[i].preAllocate(PRE_ALLOCATE_MiBS * ONE_MiB))  
       errorHalt(ERR_MSG_FILE_PREALLOC_FAILED);
   }
 
 // Open and Fill Header File
 
-    if(!mfile.open(Filename_Text, O_RDWR | O_CREAT)) {  errorHalt(ERR_MSG_FILE_OPEN_FAILED); }
+    if(!MetaFile.open(Filename_Text, O_RDWR | O_CREAT)) {  errorHalt(ERR_MSG_FILE_OPEN_FAILED); }
 
-    mfile.printf("* Future Ocean Lab Radiometer Data File \r\n");
-    mfile.printf("*  \r\n");
-    mfile.printf("* Software Version: %f \r\n",FOL_RAD_VV);
-    mfile.printf("*  \r\n");
-    mfile.printf("* %s, %s \r\n",CRUISE_NAME,SHIP_NAME);
-    mfile.printf("*  \r\n");
-    mfile.printf("* File Created at %s \r\n",HeaderTime);
-    mfile.printf("*  \r\n");
-    mfile.printf("* Sampling Rate: 1GHz FPGA subsampled at %uHz\r\n",Ns[Current_Ns]);
-    mfile.printf("*  \r\n");
-    mfile.printf("* Each Ping generates a 6B binary data packet: \r\n");
-    mfile.printf("*    [2B] <Microseconds since last ping>  \r\n");
-    mfile.printf("*    [2B] <Pulse Count>  \r\n");
-    mfile.printf("*    [2B] <TimeHi mod 16>  \r\n");
-    mfile.printf("*  \r\n");
-    mfile.printf("* Sensor data is stored asynchronously in  12B packets:  \r\n");
-    mfile.printf("*    [2B] 0xFFFF  \r\n");
-    mfile.printf("*    [2B] <Tilt1> \r\n");
-    mfile.printf("*    [2B] <Tilt2>  \r\n");
-    mfile.printf("*    [2B] 0xFFFF   \r\n");
-    mfile.printf("*    [2B] <Temp>  \r\n");
-    mfile.printf("*    [2B] <Depth> \r\n");
-    mfile.printf("*  \r\n");
-    mfile.printf("* A 1Hz Heartbeat is stored in a 18B packet as: \r\n");
-    mfile.printf("*    [5B] 0xFFFFFFFFFF  \r\n");
-    mfile.printf("*    [4B] <UTC seconds> \r\n");
-    mfile.printf("*    [4B] <Microseconds>  \r\n");
-    mfile.printf("*    [5B] 0xFFFFFFFFFF  \r\n");
-    mfile.printf("*  \r\n");
-    mfile.printf("*  \r\n");
-    mfile.flush();
+    MetaFile.printf("* Future Ocean Lab Radiometer Data File \r\n");
+    MetaFile.printf("*  \r\n");
+    MetaFile.printf("* Software Version: %f \r\n",FOL_RAD_VV);
+    MetaFile.printf("*  \r\n");
+    MetaFile.printf("* %s, %s \r\n",CRUISE_NAME,SHIP_NAME);
+    MetaFile.printf("*  \r\n");
+    MetaFile.printf("* File Created at %s \r\n",HeaderTime);
+    MetaFile.printf("*  \r\n");
+    MetaFile.printf("* Sampling Rate: 1GHz FPGA subsampled at %uHz\r\n",Ns[Current_Ns]);
+    MetaFile.printf("*  \r\n");
+    MetaFile.printf("* Each Ping generates a 6B binary data packet: \r\n");
+    MetaFile.printf("*    [2B] <Microseconds since last ping>  \r\n");
+    MetaFile.printf("*    [2B] <Pulse Count>  \r\n");
+    MetaFile.printf("*    [2B] <TimeHi mod 16>  \r\n");
+    MetaFile.printf("*  \r\n");
+    MetaFile.printf("* Sensor data is stored asynchronously in  12B packets:  \r\n");
+    MetaFile.printf("*    [2B] 0xFFFF  \r\n");
+    MetaFile.printf("*    [2B] <Tilt1> \r\n");
+    MetaFile.printf("*    [2B] <Tilt2>  \r\n");
+    MetaFile.printf("*    [2B] 0xFFFF   \r\n");
+    MetaFile.printf("*    [2B] <Temp>  \r\n");
+    MetaFile.printf("*    [2B] <Depth> \r\n");
+    MetaFile.printf("*  \r\n");
+    MetaFile.printf("* A 1Hz Heartbeat is stored in a 18B packet as: \r\n");
+    MetaFile.printf("*    [5B] 0xFFFFFFFFFF  \r\n");
+    MetaFile.printf("*    [4B] <UTC seconds> \r\n");
+    MetaFile.printf("*    [4B] <Microseconds>  \r\n");
+    MetaFile.printf("*    [5B] 0xFFFFFFFFFF  \r\n");
+    MetaFile.printf("*  \r\n");
+    MetaFile.printf("*  \r\n");
+    MetaFile.flush();
 
-    Serial1.println(" ");
-    Serial1.println("Files opened and preallocated...  ");
+    SERIALN.println(" ");
+    SERIALN.println("Files opened and preallocated...  ");
 
     return 0;
 }
 
 void Start_Count() { // DONE
-  Serial1.println(" ");
+  SERIALN.println(" ");
 
   // Startup Hamamatsu
   digitalWrite(pin_HamPwr,HIGH);
-  Serial1.println("Hamamatsu Powered Up... ");
+  SERIALN.println("Hamamatsu Powered Up... ");
 
   // Start Counting
   digitalWrite(pin_Reset,LOW);
-  Serial1.println("Fabric Counters Running... ");
+  SERIALN.println("Fabric Counters Running... ");
   
   // Start Ping Interrupt
   fHandlePings = TRUE;
-  Serial1.println(" ");
-  Serial1.println("Photon counting has begun!");
-  Serial1.println(" ");
+  SERIALN.println(" ");
+  SERIALN.println("Photon counting has begun!");
+  SERIALN.println(" ");
 
   fStopCount = FALSE;
   
 }
 
 void Log_Data() {
-  static int Count=0,         // Result of Write_Ring_to_SD()
+  static int Count=0,        // Result of Write_Ring_to_SD()
              eval=0,
              HamWasRdy=1,    // Start high to trigger opening "not ready" msg
              HamIsRdy=1;
   static char cmd;
+  static unsigned long LastPayloadMillis = 0,
+                       MillisNow = 0;
 
-//  Serial1.print("In Log_Data(), fStopCount = ");
-//  Serial1.println(fStopCount);
+//  SERIALN.print("In Log_Data(), fStopCount = ");
+//  SERIALN.println(fStopCount);
 
   while(fStopCount == FALSE) {
-    
     // ------------------------------------------------------------ 
     //  1. If there's an RU+ in the cache, log  to SD  
     noInterrupts();
@@ -854,13 +955,13 @@ void Log_Data() {
       if( (eval = Write_Ring_to_SD()) != 0) {
         if(eval == ERR_FILE_WRITE_FAILED) {
           /*  TODO: panic, file write failed*/
-          Serial1.println("File Write Failed! Shutting Down!");
+          SERIALN.println("File Write Failed! Shutting Down!");
           fStopCount = TRUE;
           }
         else if(eval == ERR_OUT_OF_FILES) {
             /* TODO:  OUT OF FILES! Hold Ints, ADD MORE FILES, 
                       EAT THE LOST DATA FOR A BIT, restore Ints*/
-          Serial1.println("File Write Failed! Shutting Down!");
+          SERIALN.println("File Write Failed! Shutting Down!");
           fStopCount = TRUE;
         }  
       }
@@ -868,56 +969,71 @@ void Log_Data() {
 
     
     // ------------------------------------------------------------ 
-    //  2. Query Sensors, Fill Payload                 SKIP for now
+    //  2. Query Sensors, Fill Payload                 
     //   
+
+    MillisNow = Heartbeat_MilliClock;
+    if(MillisNow - LastPayloadMillis >= PAYLOAD_DELAY_MILLIS) {
+      // 4B Millisecond Clock in bytes 4-7
+      Payload32[0] = Heartbeat_MilliClock;
+      // 2B X_Inclination in bytes 8-9, Request Y Inclination for next read
+      Payload16[0] = tiltsensor.transceiveSensor(YINCL_OUT);
+      // Wait for ADIS registers to stabilize -- Doesn't block interrupts!!
+      delayMicroseconds(40);
+      // 2B X_Inclination in bytes 10-11, Request Y Inclination for next read
+      Payload16[1] = tiltsensor.transceiveSensor(XINCL_OUT);
+      fPayload = TRUE;
+      LastPayloadMillis += PAYLOAD_DELAY_MILLIS;
+    }
 
     
     // ------------------------------------------------------------ 
     //  3. Heartbeat      // DONE
     if(fHeartbeat==HIGH) {
       fHeartbeat=LOW;    
-      Serial1.print(" Pulses: ");
-      Serial1.println((uint32_t)LastSec_Pulses);
-      Serial1.print(" TimeHi: ");
-      Serial1.println((uint32_t)LastSec_TimeHi);
+      SERIALN.print(" uSecs: ");
+      SERIALN.println((uint32_t)LastSec_uSecs);
+      SERIALN.print(" Pulses: ");
+      SERIALN.println((uint32_t)LastSec_Pulses);
+      SERIALN.print(" TimeHi: ");
+      SERIALN.println((uint32_t)LastSec_TimeHi);
       
       // Check for change of HamRdy signal once per Heartbeat
       HamIsRdy = digitalRead(pin_HamRdy);
       if (HamIsRdy!=HamWasRdy) {
-        if(HamIsRdy == 1) {Serial1.println(" Hamamatsu Ready! ");}
-        else              {Serial1.println(" Hamamatsu Warming up... ");};
+        if(HamIsRdy == 1) {SERIALN.println(" Hamamatsu Ready! ");}
+        else              {SERIALN.println(" Hamamatsu On Standby... ");};
         HamWasRdy = HamIsRdy;
       } // if (HamIsRdy!=HamWasRdy)
     } // if(fHeartbeat==HIGH)
 
 
     // ------------------------------------------------------------ 
-    //  4. Minimal Serial CLI 
-    if (Serial1.available()) {
-      cmd = Serial1.read();
+    //  4. Check for Serial command to Stop Count
+    if (SERIALN.available()) {
+      cmd = SERIALN.read();
       switch(cmd)  {
         case 'q': 
-          Serial1.println(" ");
-          Serial1.println(" Stopping count... ");
-          Serial1.println(" ");
+          SERIALN.println(" ");
+          SERIALN.println(" Stopping count... ");
+          SERIALN.println(" ");
           fStopCount = TRUE; 
           break;
         default:
-          Serial1.println(" ");
-          Serial1.println(" Type 'q' to stop count and enter command shell");
-          Serial1.println(" ");
+          SERIALN.println(" ");
+          SERIALN.println(" Type 'q' to stop count and return to command shell");
+          SERIALN.println(" ");
           break;
       }
     }
 
-
     // ------------------------------------------------------------ 
     //  5. Check PwrDown Pin
     eval = digitalRead(pin_PwrDwn);
-//    if(eval==LOW) {
-//      fStopCount = TRUE;
-//      fPowerDownNow=TRUE;
-//    }
+    if(eval==LOW) {
+      fStopCount = TRUE;
+      fPowerDownNow=TRUE;
+    }
 
     
   } // while(fStopCount == FALSE)
@@ -929,15 +1045,15 @@ void Stop_Count() {
 
   // Start Ping Interrupt
   fHandlePings = FALSE;
-  Serial1.println(" ");
-  Serial1.println("Photon counting has stopped. ");
-  Serial1.println(" ");
+  SERIALN.println(" ");
+  SERIALN.println("Photon counting has stopped. ");
+  SERIALN.println(" ");
   
   digitalWrite(pin_Reset,HIGH);
-  Serial1.println("Fabric Counters Zeroed... ");
+  SERIALN.println("Fabric Counters Zeroed... ");
 
   digitalWrite(pin_HamPwr,LOW);
-  Serial1.println("Hamamatsu Powered Down... ");
+  SERIALN.println("Hamamatsu Powered Down... ");
 
 }
 
@@ -947,28 +1063,27 @@ void Close_Files() {
                     
   sprintDateTime(HeaderTime,FileNameTime);
     
-  mfile.printf("* File Closed at %s \r\n",HeaderTime);
-  mfile.flush();
-  mfile.truncate();
-  mfile.close();
+  MetaFile.printf("* File Closed at %s \r\n",HeaderTime);
+  MetaFile.flush();
+  MetaFile.truncate();
+  MetaFile.close();
     
   for(int j=0;j<N_Files;++j) {
-    bfile[j].flush();
-    bfile[j].truncate();
-    if(bfile[j].fileSize()==0) {bfile[j].remove();};
-    bfile[j].close();
+    DataFile[j].flush();
+    DataFile[j].truncate();
+    if(DataFile[j].fileSize()==0) {DataFile[j].remove();};
+    DataFile[j].close();
   }
 
   sd.chdir("/");
 
-  Serial1.println(" ");
-  Serial1.println(" Files Closed! ");
+  SERIALN.println(" ");
+  SERIALN.println(" Files Closed! ");
   
 }
 
 
-
-/*    Interrupt Routines  
+/*    Interrupt Routine
 */
 
 FASTRUN void ISR_Ping(void) { // DONE
@@ -993,32 +1108,37 @@ x             Write local buffer into global read buffer
 
   static uint8_t   NewData[6];
   static uint16_t* NewData16 = (uint16_t*) NewData;
-  static uint32_t  _Pulses=0,_TimeHi=0; // Pulses and Duty over last Sec
-  static uint16_t  PingCount   = 0;
-  static uint32_t  cycles = 0,
-                   cycles_last = 0;
+  static uint32_t  uSecsSoFar=0,TimeHiSoFar=0,PulsesSoFar=0; // Pulses and Duty over last Sec
+  static uint16_t  PingCount = Ns[Current_Ns];
+  static uint32_t  CPU_cycles = 0,
+                   CPU_cycles_last = 0;
 
+  
   if(fHandlePings==TRUE) {
+
+//  SERIALN.println("Ping");
 
 /*    0. Suspend Interrupts and check time
 */
     noInterrupts();
     
-    cycles = ARM_DWT_CYCCNT; // Use free-running DWT cpu-click-counter on the K77 M4...
-    NewData16[0] = (cycles - cycles_last)/cpu_clicks_per_us; // us between pings, up to 65ms
-    cycles_last = cycles;
+    CPU_cycles = ARM_DWT_CYCCNT; // Use free-running DWT cpu-click-counter on the K77 M4...
+    NewData16[0] = (CPU_cycles - CPU_cycles_last)/cpu_clicks_per_us; // us between pings, up to 65ms
+    CPU_cycles_last = CPU_cycles;
   
 
 /*    1. PULL DATA FROM CMOD
  */
 //          Set Dtog High and read 16-bit bus into local buffer
-    digitalWriteFast(pin_Dtog,HIGH);
-    NewData[2] = GPIOC_PDIR & 0xFF; // ~20ns
-    NewData[3] = GPIOD_PDIR & 0xFF; // ~20ns
+    NewData[2] = (uint8_t) (GPIOC_PDIR & 0xFF); // ~20ns
+    NewData[3] = (uint8_t) (GPIOD_PDIR & 0xFF); // ~20ns
 //          Set Dtog Low and read 16-bit bus into local buffer
     digitalWriteFast(pin_Dtog,LOW);
+    while(ARM_DWT_CYCCNT <= CPU_cycles_last + DTOG_cycles_delay) {};
+    delayMicroseconds(1);
     NewData[4] = GPIOC_PDIR & 0xFF; // ~20ns
     NewData[5] = GPIOD_PDIR & 0xFF; // ~20ns
+    digitalWriteFast(pin_Dtog,HIGH);
 //          Push local buffer into RingBuffer
     Write_Data_to_Ring(NewData,6);
 
@@ -1032,55 +1152,93 @@ x             Write local buffer into global read buffer
 
 
 /*    3. UPON Ns SAMPLES, WRITE 1s MARKER TO SD AND TRIGGER HEARTBEAT
- */    
+ */       
 //        Increment per-second counters
-    _Pulses += NewData[1];
-    _TimeHi += NewData[2];
+    uSecsSoFar  += NewData16[0];
+    TimeHiSoFar += NewData16[1];
+    PulsesSoFar += NewData16[2];
 //       Check if it's time for a Heartbeat
     if(--PingCount == 0) {
       PingCount = Ns[Current_Ns];
       UTC_Buffer32[0] = now();
-      UTC_Buffer32[1] = mclock;
+      UTC_Buffer32[1] = Heartbeat_MilliClock;
       Write_Data_to_Ring(UTC_Buffer, UTC_BUFFER_BYTES);
-      LastSec_Pulses = _Pulses;
-      LastSec_TimeHi = _TimeHi;
-      _Pulses = _TimeHi = 0;
+      LastSec_uSecs  = uSecsSoFar;
+      LastSec_Pulses = PulsesSoFar;
+      LastSec_TimeHi = TimeHiSoFar;
+      uSecsSoFar = PulsesSoFar = TimeHiSoFar = 0;
       fHeartbeat = HIGH;
+//  IF DEBUGGING, SERIAL DUMP HERE:
+//        SERIALN.println("Heartbeat");
+//        SERIALN.println(NewData[0]);
+//        SERIALN.println(NewData[1]);
+//        SERIALN.println(NewData[4]);
+//        SERIALN.println(NewData[5]);
     } // if(--PingCount == 0)
-
     interrupts();
   } // if(fHandlePings==TRUE)
 }
 
 
-
-/*    System  Shutdown 
+/*    Shutdown Routine
 */
-
 void Shutdown() {  // Done-ish
-  Serial1.println("Shutting down!!");
+  SERIALN.println("Shutting down!!");
+  BuzzerDot();
+  BuzzerDot();
+  BuzzerDot();
+  digitalWrite(pin_HamPwr,LOW);
+  delayMicroseconds(50);
   digitalWrite(pin_KillMePls,HIGH);  // Tell Cmod to kill me!!
+  BuzzerDot();
+  BuzzerDot();
+  BuzzerDot();
   while(1) {};
 } // setup_Shutdown()
 
 void setup() { // DONE 
   setup_GPIO();
   setup_Interfaces();
+  setup_Sensors();
   setup_Buffers();
   setup_Timers();
 } // Setup()
 
 void loop() { // DONE
-  int code = Initial_CLI(); 
-  if(code == LOG_DATA) {
-    Open_Files();
-    Start_Count();
-    Log_Data();
-    Stop_Count();
-    Close_Files();     
-    if(fPowerDownNow==TRUE) Shutdown();
-  }
-  else if(code  == RUN_CLI) {
-    Main_CLI();
-  }
+
+  int cmd = Main_CLI(); 
+
+  switch(cmd)  {
+    
+    case CMD_LOG_DATA:  // Check for PIN_SHUTDOWN and SERIAL_SHUTDOWN
+      Open_Files();
+      Start_Count();
+      Log_Data();
+      Stop_Count();
+      Close_Files();     
+      if(fPowerDownNow==TRUE) Shutdown();
+      break;
+      
+    case CMD_MTP_USB: // Check for PIN_SHUTDOWN and SERIAL_SHUTDOWN
+      // 
+      // MTP CODE HERE
+//       {
+//        MTPStorage_SD mtp_storage;
+//        MTPD          mtpd(&mtp_storage);
+//        if (SD.begin()) {
+//          mtpd.loop();
+//        }
+//       }
+      // 
+      if(fPowerDownNow==TRUE) Shutdown();
+      break;
+      
+    case CMD_SHUTDOWN: // Just SHUTDOWN
+      Shutdown();
+      break;
+      
+    default:  
+      break;
+      
+  } // Switch(cmd)
 }
