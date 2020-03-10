@@ -992,11 +992,11 @@ void Log_Data() {
     if(fHeartbeat==HIGH) {
       fHeartbeat=LOW;    
       SERIALN.print(" uSecs: ");
-      SERIALN.println((uint32_t)LastSec_uSecs);
+      SERIALN.println(((uint32_t)LastSec_uSecs)/1000000000.0);
       SERIALN.print(" Pulses: ");
       SERIALN.println((uint32_t)LastSec_Pulses);
       SERIALN.print(" TimeHi: ");
-      SERIALN.println((uint32_t)LastSec_TimeHi);
+      SERIALN.println(((uint32_t)LastSec_TimeHi)*16.0/1000000000.0);
       
       // Check for change of HamRdy signal once per Heartbeat
       HamIsRdy = digitalRead(pin_HamRdy);
@@ -1168,12 +1168,6 @@ x             Write local buffer into global read buffer
       LastSec_TimeHi = TimeHiSoFar;
       uSecsSoFar = PulsesSoFar = TimeHiSoFar = 0;
       fHeartbeat = HIGH;
-//  IF DEBUGGING, SERIAL DUMP HERE:
-//        SERIALN.println("Heartbeat");
-//        SERIALN.println(NewData[0]);
-//        SERIALN.println(NewData[1]);
-//        SERIALN.println(NewData[4]);
-//        SERIALN.println(NewData[5]);
     } // if(--PingCount == 0)
     interrupts();
   } // if(fHandlePings==TRUE)
