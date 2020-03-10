@@ -99,6 +99,8 @@ begin
 
   RESET_tb <= '0' after 100000 ns; -- 100us delay at start
 
+  KILLT_tb <= '1' after 1000000 ns; -- 100us delay at start
+
   sysclk_tb <= not sysclk_tb after 41.667 ns;
 --  GATE_tb <= not GATE_tb after 110ns;
 --  HIN_tb <= not (HIN_tb and GATE_tb) after 20ns;

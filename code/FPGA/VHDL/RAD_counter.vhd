@@ -183,12 +183,30 @@ LEDH <= (others => '1');
 
 
 clk_proc: process(clk)
+        variable VAR_TPWR_COUNT : natural range 0 to 255 := 0;
     begin
         if rising_edge(clk) then
         
             if KILLT_IN = '1' then
+              VAR_TPWR_COUNT := VAR_TPWR_COUNT + 1;
+            end if;
+
+            if KILLT_IN = '0' then
+              VAR_TPWR_COUNT := 0;
+            end if;
+
+            if VAR_TPWR_COUNT = 250 then
               TPWR_OUT <= '0';
             end if;
+
+--            if KILLT_IN = '1' then
+--              TPWR_OUT <= '0';
+--            end if;
+            
+--            case KILLT_IN is
+--              when '1' => TPWR_OUT <= '0';
+--              when others => TPWR_OUT <= '1';
+--            end case;
         
             if DTOG_IN = '0' then
               DATA_OUT <= delta_edges(15 downto 0);
