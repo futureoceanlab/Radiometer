@@ -506,17 +506,17 @@ void BuzzerOff() {digitalWrite(pin_Buzzer,LOW);};
 void BuzzerDot() {
   elapsedMillis Buzzer_Millis;    // for ms since last Heartbeat 
   BuzzerOn();
-  while(Buzzer_Millis<200) {};
+  while(Buzzer_Millis<100) {};
   BuzzerOff();
-  while(Buzzer_Millis<300) {};
+  while(Buzzer_Millis<150) {};
  }
 
 void BuzzerDash() {
   elapsedMillis Buzzer_Millis;    // for ms since last Heartbeat 
   BuzzerOn();
-  while(Buzzer_Millis<800) {};
+  while(Buzzer_Millis<400) {};
   BuzzerOff();
-  while(Buzzer_Millis<900) {};
+  while(Buzzer_Millis<500) {};
  }
 
 void errorHalt(const char* msg) {
