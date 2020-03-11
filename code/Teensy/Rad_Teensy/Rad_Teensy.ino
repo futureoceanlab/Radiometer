@@ -325,14 +325,20 @@
           Set Dtog High
           Write 2B us-since-last-ping into local buffer
           Write local buffer into RingBuffer
-          If new payload is available (sensor, etc) write to RingBuffer
-            Payload: 12B chunk with !0!0 !0!0 X_incl Y_incl !0!0 !0!0 
+          If new payload is available (sensor, etc) write to 18B RingBuffer
+            Payload: 18B 
+               5B 0xFD
+               4B UTC ElapsedMillis
+               2B X_incl 
+               2B Y_incl
+               5B 0xFD
           Decriment Ping_Count
-          If 1s worth of Pings have gone by, add UTC to local buffer:
-               5B ASCII @@??
-               4B UTC
-               4B ElapsedMillis
-               5B ASCII ??@@
+          If 1s worth of Pings have gone by, add UTC to 18B local buffer:
+            UTC_Buffer: 18B
+               5B ASCII 0xFE
+               4B UTC Seconds
+               4B UTC ElapsedMillis
+               5B ASCII 0xFE
              Ping_Count = Ns;
              Write local buffer into RingBuffer
 
@@ -415,10 +421,10 @@ int BuzzerState = LOW;
 
 // Buffers and timing
 volatile uint8_t  Payload[PAYLOAD_BYTES];            // x
-volatile uint32_t* Payload32 = (uint32_t*) &Payload[4];
-volatile uint16_t* Payload16 = (uint16_t*) &Payload[8];
-uint8_t           UTC_Buffer[UTC_BUFFER_BYTES];         // x
-uint32_t*         UTC_Buffer32   = (uint32_t*) &UTC_Buffer[5]; // 
+volatile uint32_t*   Payload32 = (uint32_t*) &Payload[5];
+volatile uint16_t*   Payload16 = (uint16_t*) &Payload[9];
+uint8_t  UTC_Buffer[UTC_BUFFER_BYTES];         // x
+uint32_t*   UTC_Buffer32 = (uint32_t*) &UTC_Buffer[5]; // 
 const size_t      cpu_clicks_per_us =  F_CPU / 1000000;
 const size_t      cpu_clicks_per_16ns =  F_CPU / 60000000;
 const size_t      DTOG_cycles_delay = DTOG_SKIP_16ns_Clicks * cpu_clicks_per_16ns;
@@ -503,6 +509,88 @@ void BuzzerOn()  {digitalWrite(pin_Buzzer,HIGH);};
 
 void BuzzerOff() {digitalWrite(pin_Buzzer,LOW);};
 
+void BuzzerHamOpen() {
+  elapsedMillis Buzzer_Millis;    // for ms since last Heartbeat 
+  BuzzerOn();
+  while(Buzzer_Millis<150) {};
+  BuzzerOff();
+  while(Buzzer_Millis<450) {};
+
+  BuzzerOn();
+  while(Buzzer_Millis<100) {};
+  BuzzerOff();
+  while(Buzzer_Millis<100) {};
+  BuzzerOn();
+  while(Buzzer_Millis<100) {};
+  BuzzerOff();
+  while(Buzzer_Millis<100) {};
+  BuzzerOn();
+  while(Buzzer_Millis<100) {};
+  BuzzerOff();
+  while(Buzzer_Millis<100) {};
+
+  BuzzerOn();
+  while(Buzzer_Millis<150) {};
+  BuzzerOff();
+  while(Buzzer_Millis<450) {};
+  
+  BuzzerOn();
+  while(Buzzer_Millis<150) {};
+  BuzzerOff();
+  while(Buzzer_Millis<450) {};
+
+  BuzzerOn();
+  while(Buzzer_Millis<150) {};
+  BuzzerOff();
+  while(Buzzer_Millis<450) {};
+ }
+
+void BuzzerDoom() {
+  elapsedMillis Buzzer_Millis;    // for ms since last Heartbeat 
+  for(int i=0;i<3;i++) {
+    Buzzer_Millis=0;
+    BuzzerOn();
+    while(Buzzer_Millis<100) {};
+    BuzzerOff();
+    while(Buzzer_Millis<200) {};
+    BuzzerOn();
+    while(Buzzer_Millis<300) {};
+    BuzzerOff();
+    while(Buzzer_Millis<400) {};
+    BuzzerOn();
+    while(Buzzer_Millis<500) {};
+    BuzzerOff();
+    while(Buzzer_Millis<600) {};
+    BuzzerOn();
+    while(Buzzer_Millis<1000) {};
+    BuzzerOff();
+    while(Buzzer_Millis<1200) {};
+  }
+}
+
+void BuzzerShutdown() {
+  elapsedMillis Buzzer_Millis;    // for ms since last Heartbeat 
+  for(int i=0;i<3;i++) {
+    Buzzer_Millis=0;
+    BuzzerOn();
+    while(Buzzer_Millis<100) {};
+    BuzzerOff();
+    while(Buzzer_Millis<200) {};
+    BuzzerOn();
+    while(Buzzer_Millis<300) {};
+    BuzzerOff();
+    while(Buzzer_Millis<400) {};
+    BuzzerOn();
+    while(Buzzer_Millis<500) {};
+    BuzzerOff();
+    while(Buzzer_Millis<600) {};
+    BuzzerOn();
+    while(Buzzer_Millis<1000) {};
+    BuzzerOff();
+    while(Buzzer_Millis<1200) {};
+  }
+}
+
 void BuzzerDot() {
   elapsedMillis Buzzer_Millis;    // for ms since last Heartbeat 
   BuzzerOn();
@@ -530,22 +618,7 @@ void errorHalt(const char* msg) {
     SERIALN.print(", ErrorData: 0X");
     SERIALN.println(sd.sdErrorData(), HEX);
   }
-  
-  BuzzerDot();
-  BuzzerDot();
-  BuzzerDot();
-  BuzzerDash();
-  
-  BuzzerDot();
-  BuzzerDot();
-  BuzzerDot();
-  BuzzerDash();
-  
-  BuzzerDot();
-  BuzzerDot();
-  BuzzerDot();
-  BuzzerDash();
-  
+  BuzzerDoom();  
   while (true) {} 
 }
 
@@ -702,11 +775,11 @@ void setup_Sensors() {
 }
 
 void setup_Buffers() { // DONE
-  for(int i=0;i<12;++i) {
-    Payload[i] = 0x00;
+  for(int i=0;i<PAYLOAD_BYTES;i++) {
+    Payload[i] = 0xFD;
   }
-  for(int i=0;i<18;++i) {
-    UTC_Buffer[i] = 0xFF;
+  for(int i=0;i<UTC_BUFFER_BYTES;i++) {
+    UTC_Buffer[i] = 0xFE;
   }
 
 }
@@ -728,12 +801,7 @@ int  Main_CLI() {
   uint32_t m;
   char c='0',ns;
 
-  BuzzerDot();
-  BuzzerDash();
-  BuzzerDot();
-  BuzzerDash();
-  BuzzerDot();
-  BuzzerDash();
+  BuzzerHamOpen();
   
   do { delay(20); } while (SERIALN.available() && SERIALN.read());
   SERIALN.println(" ");
@@ -992,11 +1060,11 @@ void Log_Data() {
     if(fHeartbeat==HIGH) {
       fHeartbeat=LOW;    
       SERIALN.print(" uSecs: ");
-      SERIALN.println(((uint32_t)LastSec_uSecs)/1000000000.0);
+      SERIALN.println((float)((uint32_t)LastSec_uSecs)/1000000000.0); // In Seconds
       SERIALN.print(" Pulses: ");
-      SERIALN.println((uint32_t)LastSec_Pulses);
+      SERIALN.println((float)(uint32_t)LastSec_Pulses); // In number
       SERIALN.print(" TimeHi: ");
-      SERIALN.println(((uint32_t)LastSec_TimeHi)*16.0/1000000000.0);
+      SERIALN.println((float)((uint32_t)LastSec_TimeHi)*16.0/10000000.0); // In %
       
       // Check for change of HamRdy signal once per Heartbeat
       HamIsRdy = digitalRead(pin_HamRdy);
@@ -1178,15 +1246,10 @@ x             Write local buffer into global read buffer
 */
 void Shutdown() {  // Done-ish
   SERIALN.println("Shutting down!!");
-  BuzzerDot();
-  BuzzerDot();
-  BuzzerDot();
   digitalWrite(pin_HamPwr,LOW);
   delayMicroseconds(50);
   digitalWrite(pin_KillMePls,HIGH);  // Tell Cmod to kill me!!
-  BuzzerDot();
-  BuzzerDot();
-  BuzzerDot();
+  BuzzerShutdown();
   while(1) {};
 } // setup_Shutdown()
 

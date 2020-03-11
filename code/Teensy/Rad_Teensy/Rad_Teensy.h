@@ -102,7 +102,7 @@ uint8_t Current_Ns = 0; // Ns[Current_Ns]
 //#define DTOG_SKIP_16ns_Clicks           60
 #define DTOG_SKIP_16ns_Clicks           4
 
-#define PAYLOAD_BYTES             12
+#define PAYLOAD_BYTES             18
 #define UTC_BUFFER_BYTES          18
 #define PAYLOAD_DELAY_MILLIS      500
 
