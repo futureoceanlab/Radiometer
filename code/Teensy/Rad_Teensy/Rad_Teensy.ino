@@ -420,15 +420,15 @@ ADIS16209 tiltsensor; // Initialize tilt sensor
 int BuzzerState = LOW;
 
 // Buffers and timing
-volatile uint8_t  Payload[PAYLOAD_BYTES];            // x
-volatile uint32_t*   Payload32 = (uint32_t*) &Payload[5];
-volatile uint16_t*   Payload16 = (uint16_t*) &Payload[9];
-uint8_t  UTC_Buffer[UTC_BUFFER_BYTES];         // x
-uint32_t*   UTC_Buffer32 = (uint32_t*) &UTC_Buffer[5]; // 
-const size_t      cpu_clicks_per_us =  F_CPU / 1000000;
-const size_t      cpu_clicks_per_16ns =  F_CPU / 60000000;
-const size_t      DTOG_cycles_delay = DTOG_SKIP_16ns_Clicks * cpu_clicks_per_16ns;
-const size_t      size_Ring = N_BUFS * SIZE_RU;    //
+volatile uint8_t    Payload[PAYLOAD_BYTES];            // x
+volatile uint32_t*  Payload32 = (uint32_t*) &Payload[6];
+volatile uint16_t*  Payload16 = (uint16_t*) &Payload[10];
+uint8_t             UTC_Buffer[UTC_BUFFER_BYTES];         // x
+uint32_t*           UTC_Buffer32 = (uint32_t*) &UTC_Buffer[6]; // 
+const size_t        cpu_clicks_per_us =  F_CPU / 1000000;
+const size_t        cpu_clicks_per_16ns =  F_CPU / 60000000;
+const size_t        DTOG_cycles_delay = DTOG_SKIP_16ns_Clicks * cpu_clicks_per_16ns;
+const size_t        size_Ring = N_BUFS * SIZE_RU;    //
 
 MAKE_RING_BUFFER(TeensyRing, size_Ring);          // 
 
@@ -514,35 +514,35 @@ void BuzzerHamOpen() {
   BuzzerOn();
   while(Buzzer_Millis<150) {};
   BuzzerOff();
-  while(Buzzer_Millis<450) {};
+  while(Buzzer_Millis<600) {};
 
   BuzzerOn();
-  while(Buzzer_Millis<100) {};
+  while(Buzzer_Millis<700) {};
   BuzzerOff();
-  while(Buzzer_Millis<100) {};
+  while(Buzzer_Millis<800) {};
   BuzzerOn();
-  while(Buzzer_Millis<100) {};
+  while(Buzzer_Millis<900) {};
   BuzzerOff();
-  while(Buzzer_Millis<100) {};
+  while(Buzzer_Millis<1000) {};
   BuzzerOn();
-  while(Buzzer_Millis<100) {};
+  while(Buzzer_Millis<1100) {};
   BuzzerOff();
-  while(Buzzer_Millis<100) {};
+  while(Buzzer_Millis<1200) {};
 
   BuzzerOn();
-  while(Buzzer_Millis<150) {};
+  while(Buzzer_Millis<1350) {};
   BuzzerOff();
-  while(Buzzer_Millis<450) {};
+  while(Buzzer_Millis<1800) {};
   
   BuzzerOn();
-  while(Buzzer_Millis<150) {};
+  while(Buzzer_Millis<1950) {};
   BuzzerOff();
-  while(Buzzer_Millis<450) {};
+  while(Buzzer_Millis<2400) {};
 
   BuzzerOn();
-  while(Buzzer_Millis<150) {};
+  while(Buzzer_Millis<2550) {};
   BuzzerOff();
-  while(Buzzer_Millis<450) {};
+  while(Buzzer_Millis<3000) {};
  }
 
 void BuzzerDoom() {
@@ -779,7 +779,7 @@ void setup_Buffers() { // DONE
     Payload[i] = 0xFD;
   }
   for(int i=0;i<UTC_BUFFER_BYTES;i++) {
-    UTC_Buffer[i] = 0xFE;
+    UTC_Buffer[i] = 0xFC;
   }
 
 }
@@ -788,9 +788,7 @@ void setup_Timers() {
     // Initialize DWT CPU-cycle counter, for  use  in timing pings:
   ARM_DEMCR |= ARM_DEMCR_TRCENA;
   ARM_DWT_CTRL |= ARM_DWT_CTRL_CYCCNTENA;
-
 }
-
 
 
 
@@ -909,7 +907,6 @@ int  Open_Files() { // DONE
                     
   sprintDateTime(HeaderTime,FileNameTime);
 
-
   sd.chdir("/");
   sd.mkdir(FileNameTime);
   sd.chdir(FileNameTime);
@@ -942,7 +939,7 @@ int  Open_Files() { // DONE
 
     if(!MetaFile.open(Filename_Text, O_RDWR | O_CREAT)) {  errorHalt(ERR_MSG_FILE_OPEN_FAILED); }
 
-    MetaFile.printf("* Future Ocean Lab Radiometer Data File \r\n");
+    MetaFile.printf("* WHOI/MIT Future Ocean Lab Radiometer Data File \r\n");
     MetaFile.printf("*  \r\n");
     MetaFile.printf("* Software Version: %f \r\n",FOL_RAD_VV);
     MetaFile.printf("*  \r\n");
@@ -957,19 +954,18 @@ int  Open_Files() { // DONE
     MetaFile.printf("*    [2B] <Pulse Count>  \r\n");
     MetaFile.printf("*    [2B] <TimeHi mod 16>  \r\n");
     MetaFile.printf("*  \r\n");
-    MetaFile.printf("* Sensor data is stored asynchronously in  12B packets:  \r\n");
-    MetaFile.printf("*    [2B] 0xFFFF  \r\n");
-    MetaFile.printf("*    [2B] <Tilt1> \r\n");
-    MetaFile.printf("*    [2B] <Tilt2>  \r\n");
-    MetaFile.printf("*    [2B] 0xFFFF   \r\n");
-    MetaFile.printf("*    [2B] <Temp>  \r\n");
-    MetaFile.printf("*    [2B] <Depth> \r\n");
+    MetaFile.printf("* Sensor data is stored asynchronously in  18B packets:  \r\n");
+    MetaFile.printf("*    [6B] 0xFDFDFDFDFDFD  \r\n");
+    MetaFile.printf("*    [4B] <UTC microseconds>  \r\n");
+    MetaFile.printf("*    [2B] <X_Inclination> \r\n");
+    MetaFile.printf("*    [2B] <Y_Inclination> \r\n");
+    MetaFile.printf("*    [4B] 0xFDFDFDFD  \r\n");
     MetaFile.printf("*  \r\n");
     MetaFile.printf("* A 1Hz Heartbeat is stored in a 18B packet as: \r\n");
-    MetaFile.printf("*    [5B] 0xFFFFFFFFFF  \r\n");
+    MetaFile.printf("*    [6B] 0xFCFCFCFCFCFC  \r\n");
     MetaFile.printf("*    [4B] <UTC seconds> \r\n");
-    MetaFile.printf("*    [4B] <Microseconds>  \r\n");
-    MetaFile.printf("*    [5B] 0xFFFFFFFFFF  \r\n");
+    MetaFile.printf("*    [4B] <UTC microseconds>  \r\n");
+    MetaFile.printf("*    [4B] 0xFCFCFCFC  \r\n");
     MetaFile.printf("*  \r\n");
     MetaFile.printf("*  \r\n");
     MetaFile.flush();
@@ -1009,6 +1005,7 @@ void Log_Data() {
   static char cmd;
   static unsigned long LastPayloadMillis = 0,
                        MillisNow = 0;
+  static double  LS_s, LS_ph;
 
 //  SERIALN.print("In Log_Data(), fStopCount = ");
 //  SERIALN.println(fStopCount);
@@ -1059,12 +1056,18 @@ void Log_Data() {
     //  3. Heartbeat      // DONE
     if(fHeartbeat==HIGH) {
       fHeartbeat=LOW;    
-      SERIALN.print(" uSecs: ");
-      SERIALN.println((float)((uint32_t)LastSec_uSecs)/1000000000.0); // In Seconds
-      SERIALN.print(" Pulses: ");
-      SERIALN.println((float)(uint32_t)LastSec_Pulses); // In number
-      SERIALN.print(" TimeHi: ");
-      SERIALN.println((float)((uint32_t)LastSec_TimeHi)*16.0/10000000.0); // In %
+//      SERIALN.println("  ");
+//      SERIALN.print(" uSecs:  "); SERIALN.println((uint32_t)LastSec_uSecs ); // In Seconds
+//      SERIALN.print(" Pulses: "); SERIALN.println((uint32_t)LastSec_Pulses); // In number
+//      SERIALN.print(" TimeHi: "); SERIALN.println((uint32_t)LastSec_TimeHi); // In %
+      
+      LS_s =  1.0 * LastSec_uSecs  / 1000000.0;
+      LS_ph = 16.0 * LastSec_TimeHi /   10000000.0;
+      
+      SERIALN.println("  ");
+      SERIALN.print(" Secs:   "); SERIALN.println((double)LS_s,3); // In Seconds
+      SERIALN.print(" Pulses: "); SERIALN.println((uint32_t)LastSec_Pulses); // In number
+      SERIALN.print(" TimeHi: "); SERIALN.println((double)LS_ph,3); // In %
       
       // Check for change of HamRdy signal once per Heartbeat
       HamIsRdy = digitalRead(pin_HamRdy);
