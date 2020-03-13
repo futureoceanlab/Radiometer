@@ -620,34 +620,6 @@ void BuzzerDash() {
 /*      Helper Functions
  */
 
-/* void GetCommand(char*,byte)  { 
-  static const char endMarker = '\n';
-  static byte ndx;
-  static char rc;
-  static boolean newData;
-
-  ndx = 0;
-  newData = FALSE;
- 
-  while (Serial.available() > 0 && newData == FALSE) {
- 
-    rc = Serial.read();
-
-    if (rc != endMarker) {
-      receivedChars[ndx] = rc;
-      ndx++;
-      if (ndx >= maxChars) {
-        ndx = maxChars - 1;
-      }
-    }
-    else {
-      receivedChars[ndx] = '\0'; // terminate the string
-      ndx = 0;
-      newData = TRUE;
-    }
-  }
-}*/
-
 void errorHalt(const char* msg) {
   SERIALN.print("Error: ");
   SERIALN.println(msg);
@@ -1197,13 +1169,56 @@ x             Write local buffer into global read buffer
 /*    Shutdown Routine
 */
 void Shutdown() {  // Done-ish
-  SERIALN.println("Shutting down!!");
+  SERIALN.println();
+  SERIALN.println(F(
+    "Are you sure you want to sut down the Teensy?\r\n"
+    "Turning back on requires a physical power cycle.\r\n"
+    "Type 'Y' to continue...\r\n"));
+
+  while (!SERIALN.available()) {yield();}
+  if (SERIALN.read() != 'Y') {
+    SERIALN.println(F("Exiting, 'Y' not typed."));
+    return;
+  }
+  
+  SERIALN.println("OK, Shutting Teensy down!!");
   digitalWrite(pin_HamPwr,LOW);
   delayMicroseconds(50);
-//  digitalWrite(pin_KillMePls,HIGH);  // Tell Cmod to kill me!!
+  digitalWrite(pin_KillMePls,HIGH);  // Tell Cmod to kill me!!
   BuzzerShutdown();
   while(1) {};
 } // setup_Shutdown()
+
+
+
+
+
+
+/*    Filesystem Functions
+*/
+
+int FS_Format_SD(void) {
+//  SERIALN.println();
+//  SERIALN.println(F(
+//    "Your SD will be formated exFAT.\r\n"
+//    "All data on the SD will be lost.\r\n"
+//    "Type 'Y' to continue.\r\n"));
+//
+//  while (!SERIALN.available()) {yield();}
+//  if (SERIALN.read() != 'Y') {
+//    SERIALN.println(F("Exiting, 'Y' not typed."));
+//    return(1);
+//  }
+//  if (!sd.cardBegin(SD_CONFIG)) {return(0);} //{error("cardBegin failed");}    
+//  if (!sd.format(&SERIALN)) {return(0);}// {error("format failed");}
+//  if (!sd.volumeBegin()) {return(0);}//{error("volumeBegin failed");}
+//
+//  SERIALN.print(F("Bytes per cluster: "));
+//  SERIALN.println(sd.bytesPerCluster());
+//  SERIALN.println(F("SD Formatted"));
+  return(1);
+}
+
 
 
 
@@ -1230,29 +1245,93 @@ void Shutdown() {  // Done-ish
  */
 
 
+ void CLI_GetCommand_Wait(char* receivedChars,byte maxChars)  { 
+  static const char endMarker = '\n';
+  static byte ndx;
+  static char rc;
+  static boolean newData;
+
+  ndx = 0;
+  newData = FALSE;
+ 
+  while (Serial.available() > 0 && newData == FALSE) {
+ 
+    rc = Serial.read();
+
+    if (rc != endMarker) {
+      receivedChars[ndx] = rc;
+      ndx++;
+      if (ndx >= maxChars) {
+        ndx = maxChars - 1;
+      }
+    }
+    else {
+      receivedChars[ndx] = '\0'; // terminate the string
+      ndx = 0;
+      newData = TRUE;
+    }
+  }
+}
+
+/* void CLI_GetCommand_Timeout(char*,byte,byte)  { 
+  static const char endMarker = '\n';
+  static byte ndx;
+  static char rc;
+  static boolean newData;
+
+  ndx = 0;
+  newData = FALSE;
+ 
+  while (Serial.available() > 0 && newData == FALSE) {
+ 
+    rc = Serial.read();
+
+    if (rc != endMarker) {
+      receivedChars[ndx] = rc;
+      ndx++;
+      if (ndx >= maxChars) {
+        ndx = maxChars - 1;
+      }
+    }
+    else {
+      receivedChars[ndx] = '\0'; // terminate the string
+      ndx = 0;
+      newData = TRUE;
+    }
+  }
+}*/
+
+void CLI_ClearSerial() {
+    do { delay(20); } while (SERIALN.available() && SERIALN.read());
+}
+
+void CLI_CmdLine() {
+  SERIALN.println(" "); 
+  SERIALN.print(ThisDive_RadName); 
+  SERIALN.print(": ");
+ }
+
 void CLI_Get_Ns()  {
   uint32_t micros_elapsed;
   char ns;
 
-  do { delay(20); } while (SERIALN.available() && SERIALN.read());
+  CLI_ClearSerial();
 
-  SERIALN.println(" ");
-  SERIALN.println("Select Data Sampling Rate:");
-  SERIALN.println("Type '0' for  1 kHz");
-  SERIALN.println("Type '1' for  2 kHz");
-  SERIALN.println("Type '2' for  4 kHz");
-  SERIALN.println("Type '3' for  8 kHz");
-  SERIALN.println("Type '4' for 10 kHz");
-  SERIALN.println("Type '5' for 16 kHz");
-//    SERIALN.println("Type '6' for 24 kHz"); // 240MHz
-//    SERIALN.println("Type '7' for 32 kHz"); // 240MHz
-  SERIALN.println("Type '6' for 25 kHz"); // 250MHz
-  SERIALN.println("Type '7' for 40 kHz"); // 250MHz
+  SERIALN.println(F(" "));
+  SERIALN.println(F("Select Data Sampling Rate:"));
+  SERIALN.println(F("Type '0' for  1 kHz"));
+  SERIALN.println(F("     '1' for  2 kHz"));
+  SERIALN.println(F("     '2' for  4 kHz"));
+  SERIALN.println(F("     '3' for  8 kHz"));
+  SERIALN.println(F("     '4' for 10 kHz"));
+  SERIALN.println(F("     '5' for 16 kHz"));
+  SERIALN.println(F("     '6' for 25 kHz")); // 250MHz; 24 @ 240
+  SERIALN.println(F("     '7' for 40 kHz")); // 250MHz; 32 @ 240
 
   micros_elapsed =  micros();
   while (!SERIALN.available() && (micros()-micros_elapsed < 30*ONE_MILLION)) {  }
   if(!SERIALN.available()) { // No reply, use default rate
-    SERIALN.println("Timeout, defaulting to 1 kHz...");
+    SERIALN.println(F("Timeout, defaulting to 1 kHz..."));
     BuzzerDot();
     BuzzerDot();
     BuzzerDot();
@@ -1271,10 +1350,10 @@ void CLI_Get_Ns()  {
     default:  ThisDive_SampleRateCode = 0; break;
   } // Switch(ns)
 
-  SERIALN.println(" ");
-  SERIALN.print("Proceeding with Sampling Rate ");
+  SERIALN.println(F(" "));
+  SERIALN.print(F("Proceeding with Sampling Rate "));
   SERIALN.print(Ns[ThisDive_SampleRateCode]);  
-  SERIALN.println("Hz");
+  SERIALN.println(F("Hz"));
 
   Set_Ns();
   
@@ -1316,14 +1395,71 @@ void CLI_Get_Dive_Duration() {
   BuzzerDash();
 }
 
-void CLI_Main() {
-  char cmd='0';
+void CLI_Filesystem()  {
+  static char cmd_line[128];
+  static char *cmd,*arg;
   
-  do { delay(20); } while (SERIALN.available() && SERIALN.read());
+  while(TRUE) {
+    CLI_ClearSerial();
+    CLI_CmdLine();
+    CLI_GetCommand_Wait(cmd_line,128);
+    
+    cmd = strtok(cmd_line, " ");
+    arg = strtok(NULL, " ");
+    
+    if(strcmp(cmd,"ls")==0) { // TEST?
+      sd.ls(LS_R | LS_DATE | LS_SIZE);
+    }
+    
+    else if(strcmp(cmd,"cd")==0) { // TEST?
+      if (!sd.chdir(arg)) {SERIALN.println(F("cd failed"));}
+    }
+    
+    else if(strcmp(cmd,"cat")==0) {
+      SERIALN.println(F("NA"));
+    }
+    
+    else if(strcmp(cmd,"rm")==0) {
+      SERIALN.println(F("NA"));      
+    }
+    
+    else if(strcmp(cmd,"pwd")==0) {
+      SERIALN.println(F("NA"));
+    }
+    
+    else if(strcmp(cmd,"format")==0) { // TEST?
+       if (!FS_Format_SD()) {SERIALN.println(F("format failed"));};
+    }
+    
+    else if(strcmp(cmd,"home")==0) { // TEST?
+      return;
+    }
+    
+    else if(strcmp(cmd,"help")==0) { // TEST?
+    SERIALN.println(F(" "));
+    SERIALN.println(F("The following  Filesystem commands are available:"));
+    SERIALN.println(F("cd <path>"));
+    SERIALN.println(F("pwd"));
+    SERIALN.println(F("hexdump <filename>"));
+    SERIALN.println(F("rm <filename>"));
+    SERIALN.println(F("format"));
+    SERIALN.println(F("help"));
+    SERIALN.println(F("home"));
+    }else {
+    SERIALN.println(F(" "));
+    SERIALN.println(F("Type \"help\" for a list of file commands."));
+    }
+  }
+}
 
-  SERIALN.println(" "); SERIALN.print(ThisDive_RadName); SERIALN.print(": ");
-
+void CLI_Main() {
+  static char cmd='0';
+  
+  CLI_ClearSerial();
+  CLI_CmdLine();
+  
   while (!SERIALN.available()) {};
+  
   cmd = SERIALN.read();
   
   switch(cmd) {
@@ -1337,20 +1473,24 @@ void CLI_Main() {
       
     case 'h': // CMD_HAMAMATSU_ON
       digitalWrite(pin_HamPwr,HIGH);
-      SERIALN.println("Hamamatsu Powered Up... ");
+      SERIALN.println(F("Hamamatsu Powered Up... "));
       break;
       
     case 'b': // CMD_HAMAMATSU_OFF
       digitalWrite(pin_HamPwr,LOW);
-      SERIALN.println("Hamamatsu Powered Down... ");
+      SERIALN.println(F("Hamamatsu Powered Down... "));
       break;
-    
+      
     case 'l': // CMD_START_LOGGING
       Open_Files();
       Start_Count();
       Log_Data();
       Stop_Count();
       Close_Files();     
+      break;
+
+    case 'f': // CMD_FileSystem
+      CLI_Filesystem();
       break;
       
     case 'p': // CMD_SHUTDOWN
@@ -1361,20 +1501,27 @@ void CLI_Main() {
       break;
       
     case 'c': // CMD_DISP_CURRENT_SETTINGS
+      SERIALN.println();
+      SERIALN.print(" Expected Dive Duration ");
+      SERIALN.print(ThisDive_Duration_Hours);  
+      SERIALN.println(" hours.");
+      SERIALN.print(F(" Sampling Rate set to "));
+      SERIALN.print(Ns[ThisDive_SampleRateCode]);  
+      SERIALN.println(F("Hz"));
       break;
       
 //    case CMD_MTP_USB: // Check for PIN_SHUTDOWN and SERIAL_SHUTDOWN
 //      break;
 
     default: // CMD_HELP_MENU
-      SERIALN.println("Type r to Set Sample Rate");
-      SERIALN.println("     d to Set Dive Duration");
-      SERIALN.println("     l to Start Logging");
-      SERIALN.println("     s to Stop Logging");
-      SERIALN.println("     h to Turn Hamamatsu On");
-      SERIALN.println("     b to Turn Hamamatsu Off");
-      SERIALN.println("     c to see Current Settings");
-      SERIALN.println("     p to Power Down");
+      SERIALN.println(F("Type r to Set Sample Rate"));
+      SERIALN.println(F("     d to Set Dive Duration"));
+      SERIALN.println(F("     l to Start Logging"));
+      SERIALN.println(F("     h to Turn Hamamatsu On"));
+      SERIALN.println(F("     b to Turn Hamamatsu Off"));
+      SERIALN.println(F("     f to explore the Filesystem"));
+      SERIALN.println(F("     c to see Current Settings"));
+      SERIALN.println(F("     p to Power Down"));
       break;
     
   }//switch(cmd)
