@@ -2,6 +2,12 @@
 #define __RADTEENSY 0
 
 
+/*------------------------------------------------------------------------------ 
+
+    Global Includes
+
+------------------------------------------------------------------------------*/
+
 // Timing 
 #include <TimeLib.h>
 #include "time.h"
@@ -13,8 +19,8 @@
 
 // ADIS16209
 #include <Arduino.h>
-//#include "FOL-TMP117.h"
 #include "FOL-ADIS16209.h"
+//#include "FOL-TMP117.h"
 
 // MTP USB
 //#include <MTP.h>
@@ -28,37 +34,51 @@
 
 ------------------------------------------------------------------------------*/
 
-//  SIZE_RU   Size of RU for writing to  SD
-//  N_BUFS    number of  RUs in RingBuffer --  chosen to make 192KiB
-//
-#define SIZE_RU 512
-#define N_BUFS 384
-//#define SIZE_RU 1024
-//#define N_BUFS 192
-//#define SIZE_RU 2048
-//#define N_BUFS 96
-//#define SIZE_RU 4096
-//#define N_BUFS 48
-//#define SIZE_RU 8192
-//#define N_BUFS 24
-//#define SIZE_RU 16384
-//#define N_BUFS 12
-//#define SIZE_RU 32768
-//#define N_BUFS 6
-
-
-
-// We need to pre-allocate file storage to keep write latency low.
-// Files should fit an integral number of RUs. To simplify, make them 
-// integer multiples of 32KiB = 2^15.  To really simplify, make them 
-// integer multiples of 1MiB = 2^20 = 32*(32KiB)
-//
 #define ONE_THOUSAND      1000
 #define ONE_MILLION    1000000
 #define ONE_BILLION 1000000000
-#define ONE_KiB           1024
-#define ONE_MiB        1048576
-#define ONE_GiB     1073741824
+#define ONE_KiB           1024 // 2^10
+#define ONE_MiB        1048576 // 2^20
+#define ONE_GiB     1073741824 // 2^30
+
+
+/*  RingBuffer Memory Size
+ 
+  SIZE_RU   Size of RU for writing to SD, must be a multiple of 512
+  N_BUFS    Number of  RUs in RingBuffer.  Data comes in 6B chunks
+            so let's fix Buffer size by 6 * largest RU = 192 KiB
+
+      SIZE_RU  512   1024    2048    4096    8192    16384    32768
+      N_BUFS   384    192      96      48      24       12        6
+  
+*/
+#define SIZE_RU 512
+#define N_BUFS 384
+
+
+/*  File Storage Size
+ We need to pre-allocate file storage to keep write latency low.
+ Files should fit an integral number of RUs, for any  RU.  That means
+ an integer multiple of largest  possible RU: 32KiB = 2^15B.  
+  
+ We also want to have an integer number of data records -- don't want to 
+ spread data records across files.  Data comes in 8B chunks, so we want
+ the file size to be a multiple of both
+ 
+   2^15     Integer number of RUs up to 2^15 = 32KiB 
+ * 2^3      Size of payload packets (Don't split across files!)
+ ------
+   2^18     = 256KiB 
+
+  That makes a minimum of 256 KiB.  Now think about data rates.  At 1kHz, 
+  we  will produce about 29MB/hr.  Would be a shame to lose more than an
+  hour of data, but flooding with many files also bad.  So let's call it 
+  O(5 hours per file),  --> 128MiB.  Note that at our max data rate of 
+  40kHz this gives us about 9 files per hour. That's hairy! But we're 
+  unlikely to exceed 10kHz, which gives about 2.5 files per hour. Cool.
+*/
+
+
 
 #define PRE_ALLOCATE_MiBS    128  // 128MiB  
 //#define PRE_ALLOCATE_MiBS    256  // 256MiB  
@@ -74,37 +94,18 @@
 #define N_Files 2
 #define FILENAME_ROOT "FOL_WHOI_Radiometer_"
 
-const size_t File_Length = PRE_ALLOCATE_MiBS * ONE_MiB;
-
-//// Possible sampling rates, 240MHz:
-//uint16_t Ns[]={ 1000,
-//                2000,
-//                4000,
-//                8000,
-//               10000,
-//               16000,
-//               24000,
-//               32000};
-
-// Possible sampling rates, 250MHz:
-uint16_t Ns[]={ 1000,
-                2000,
-                4000,
-                8000,
-               10000,
-               16000,
-               25000,
-               40000};
-
-uint8_t Current_Ns = 0; // Ns[Current_Ns]
 
 // Empirically, 1us = 60 * 16.7ns sufficed;  we should be able to get away with a lot less
 //#define DTOG_SKIP_16ns_Clicks           60
 #define DTOG_SKIP_16ns_Clicks           4
 
-#define PAYLOAD_BYTES             18
-#define UTC_BUFFER_BYTES          18
+#define DATA_BUFFER_BYTES         8
+#define HEART_BUFFER_BYTES        16
 #define PAYLOAD_DELAY_MILLIS      500
+#define TOKEN_DATA                0xFC
+#define TOKEN_HEART_A             0xFD
+#define TOKEN_HEART_B             0xFE
+
 
 // Global Error Codes
 #define ERR_FILE_WRITE_FAILED     -1
@@ -119,13 +120,31 @@ uint8_t Current_Ns = 0; // Ns[Current_Ns]
 #define ERR_MSG_FILE_OPEN_FAILED      "File Open Failed!"
 #define ERR_MSG_FILE_PREALLOC_FAILED  "File Pre-Allocation Failed"
 
-#define CMD_LOG_DATA 1
-#define CMD_MTP_USB  2
-#define CMD_SHUTDOWN 3
-#define CMD_TRYAGAIN 4
+#define CMD_SET_DIVE_DURATION     0
+#define CMD_SET_DIVE_SAMPLE_RATE  1
+#define CMD_START_LOGGING         2
+#define CMD_STOP_LOGGING          3
+#define CMD_SHUTDOWN              4
+#define CMD_FILE_LS               5
+#define CMD_FILE_CD               6
+#define CMD_FILE_RM               7
+#define CMD_FILE_FORMAT           8
+#define CMD_HELP_MENU             9
+
+#define CMD_SET_DIVE_TXT_MSG      10
+#define CMD_HAMAMATSU_ON          11
+#define CMD_HAMAMATSU_OFF         12
+#define CMD_BEGIN_MTP_USB_MODE    13
+#define CMD_BACK_TO_MENU          14
+
+#define CLI_CMD_MAX_CHARS         128
+
 
 #define TRUE  (1==1)
 #define FALSE (!TRUE)
+
+#define SERIALN Serial1
+//#define ANNOUNCE_PINGS 
 
 #define FOL_RAD_VV 0.2              //  Radiometer Software Version
 
@@ -214,39 +233,50 @@ uint8_t Current_Ns = 0; // Ns[Current_Ns]
  */
 
 // INPUT PINS: CMOD
-const byte pin_PortC[]   = {15, 22, 23, 9, 10, 13, 11, 12};  // C(00:07) Byte 1
-const byte pin_PortD[]   = { 2, 14,  7, 8,  6, 20, 21,  5};  // D(00:07) Byte 2
-const byte pin_Ping      =  34; //  E25  Data redy at falling edge 
+static const byte pin_PortC[]   = {15, 22, 23, 9, 10, 13, 11, 12};  // C(00:07) Byte 1
+static const byte pin_PortD[]   = { 2, 14,  7, 8,  6, 20, 21,  5};  // D(00:07) Byte 2
+static const byte pin_Ping      =  34; //  E25  Data redy at falling edge 
 
 // INPUT PINS: OTHER
-const byte pin_HamRdy    =   3; //  A12  HIGH: Hamamatsu Ready    LOW: Hamamatsu offline
-const byte pin_PwrDwn    =  38; //  C11  HIGH: Power is going down in 10s, burn the files, save Cannoli
+static const byte pin_HamRdy    =   3; //  A12  HIGH: Hamamatsu Ready    LOW: Hamamatsu offline
+static const byte pin_PwrDwn    =  38; //  C11  HIGH: Power is going down in 10s, burn the files, save Cannoli
 
 // Output Pins
-const byte pin_NsSel[]   = {24,25,28}; // E26 A05 A16   Binary NS select lines 
-// const byte pin_PWM[]     = {35,36,37}; // C08 C09 C10   PWM outtput to stepper motors
-const byte pin_PWM[]     = {35,36}; // C08 C09   PWM outtput to stepper motors
-const byte pin_Buzzer    = 37;  // C10  HIGH: Buzzer On                  LOW: Buzzer Off (Prev. 3rd PWM pin)
-const byte pin_Dtog      = 33;  // E24  HIGH: request Pulse count        LOW: request Cycle count
-const byte pin_Reset     = 17;  // B01  HIGH: reset FPGA counters        LOW: enable counters
-const byte pin_HamPwr    =  4;  // A13  HIGH: Enable Ham Load Switch     LOW: Disable 
-const byte pin_CAN0_Lo   = 39;  // A17  HIGH: CAN Low Power Mode ON      LOW: CAN regular mode
-const byte pin_KillMePls = 16;  // B00  HIGH: Cmod, T36 load switch off  LOW: DEFAULT 
+static const byte pin_NsSel[]   = {24,25,28}; // E26 A05 A16   Binary NS select lines 
+// static const byte pin_PWM[]     = {35,36,37}; // C08 C09 C10   PWM outtput to stepper motors
+static const byte pin_PWM[]     = {35,36}; // C08 C09   PWM outtput to stepper motors
+static const byte pin_Buzzer    = 37;  // C10  HIGH: Buzzer On                  LOW: Buzzer Off (Prev. 3rd PWM pin)
+static const byte pin_Dtog      = 33;  // E24  HIGH: request Pulse count        LOW: request Cycle count
+static const byte pin_Reset     = 17;  // B01  HIGH: reset FPGA counters        LOW: enable counters
+static const byte pin_HamPwr    =  4;  // A13  HIGH: Enable Ham Load Switch     LOW: Disable 
+static const byte pin_CAN0_Lo   = 39;  // A17  HIGH: CAN Low Power Mode ON      LOW: CAN regular mode
+static const byte pin_KillMePls = 16;  // B00  HIGH: Cmod, T36 load switch off  LOW: DEFAULT 
 
 // COMMS PINS
-const byte pin_I2C0_SDA  = 18;  // B03 SDA
-const byte pin_I2C0_SCL  = 19;  // B02 SCL 
+static const byte pin_I2C0_SDA  = 18;  // B03 SDA
+static const byte pin_I2C0_SCL  = 19;  // B02 SCL 
 
-const byte pin_Ser1_TX   = 26;  // A14 TX
-const byte pin_Ser1_RX   = 27;  // A15 RX 
+static const byte pin_Ser1_TX   = 26;  // A14 TX
+static const byte pin_Ser1_RX   = 27;  // A15 RX 
 
-const byte pin_CAN0_TX   = 29;  // B18 TX
-const byte pin_CAN0_RX   = 30;  // B19 RX 
+static const byte pin_CAN0_TX   = 29;  // B18 TX
+static const byte pin_CAN0_RX   = 30;  // B19 RX 
 
-const byte pin_SPI1_MOSI =  0;  // B16 MOSI 
-const byte pin_SPI1_MISO =  1;  // B17 MISO
-const byte pin_SPI1_CS   = 31;  // B10 CS
-const byte pin_SPI1_SCK  = 32;  // B11 SCK
+static const byte pin_SPI1_MOSI =  0;  // B16 MOSI 
+static const byte pin_SPI1_MISO =  1;  // B17 MISO
+static const byte pin_SPI1_CS   = 31;  // B10 CS
+static const byte pin_SPI1_SCK  = 32;  // B11 SCK
+
+
+static const size_t        cpu_clicks_per_us =  F_CPU / 1000000;
+static const size_t        cpu_clicks_per_16ns =  F_CPU / 60000000;
+static const size_t        DTOG_cycles_delay = DTOG_SKIP_16ns_Clicks * cpu_clicks_per_16ns;
+
+
+//static const uint16_t      Ns[]={ 1000, 2000, 4000, 8000, 10000, 16000, 24000, 32000}; // Possible sampling rates, 240MHz:
+static const uint16_t      Ns[]={ 1000, 2000, 4000, 8000, 10000, 16000, 25000, 40000}; // Possible sampling rates, 250MHz:
+static const size_t        File_Length = PRE_ALLOCATE_MiBS * ONE_MiB;
+static const size_t        size_Ring = N_BUFS * SIZE_RU;    //
 
 
 
@@ -276,6 +306,23 @@ typedef t_RingBuffer* hRingBuffer;
         .Size = y                       \
     };                                  \
     hRingBuffer h##x = &x;
+
+
+
+
+
+/*    Function Declarations
+*/
+
+void BuzzerOn();
+void BuzzerOff();
+void BuzzerHamOpen();
+void BuzzerDoom();
+void BuzzerShutdown();
+void BuzzerDot();
+void BuzzerDash();
+
+
 
 
 
