@@ -368,7 +368,7 @@
   Issues:
   
 ------------------------------------------------------------------------------*/
-#include "Rad_Teensy.h"
+#include "Rad_Teensy_SdFat.h"
 
 /*         Things Left to do
  * 
@@ -394,10 +394,9 @@ uint8_t             ThisDive_NumFiles = N_Files;    //
 
 /*    Gloabl Variables: Files and Buffers      
 */
-FsFile              DataFile[N_Files];       // 
-FsFile              MetaFile;                // 
-SdFs                sd;                      //
-
+SdFile                DataFile[N_Files];       // 
+SdFile                MetaFile;                // 
+SdFatSdioEX         sd;                      //
 int                 CurrentFile    = 0;      // 
 size_t              RUs_Written    = 0;      //
 char                CLI_cmd[CLI_CMD_MAX_CHARS]; //
@@ -429,7 +428,7 @@ volatile bool     fHandlePings  = FALSE;   //  In place of dettachInterrupt, set
 
 
 
-/*    Global Sensor Declarations
+/*    Gloabl Sensor Declarations
 */
 
 // ADIS 16209 variables
@@ -446,7 +445,7 @@ ADIS16209 tiltsensor; // Initialize Tilt sensor
 
 int Write_Ring_to_SD(void) {  // DONE
     if (DataFile[CurrentFile].write(TeensyRing._ring + TeensyRing.Tail, SIZE_RU) != SIZE_RU) {
-        SERIALN.println("file.write failed");
+        Serial.println("file.write failed");
         DataFile[CurrentFile].close();
         return(ERR_FILE_WRITE_FAILED);  // if file write fails, panic with -1
     }
@@ -622,17 +621,8 @@ void BuzzerDash() {
  */
 
 void errorHalt(const char* msg) {
-  SERIALN.print("Error: ");
-  SERIALN.println(msg);
-  if (sd.sdErrorCode()) {
-    if (sd.sdErrorCode() == SD_CARD_ERROR_ACMD41) {
-      SERIALN.println("Try power cycling the SD card.");
-    }
-    printSdErrorSymbol(&SERIALN, sd.sdErrorCode());
-    SERIALN.print(", ErrorData: 0X");
-    SERIALN.println(sd.sdErrorData(), HEX);
-  }
   BuzzerDoom();  
+  sd.errorHalt(msg);
   while (true) {} 
 }
 
@@ -642,10 +632,10 @@ time_t getTeensy3Time() {
 
 void dateTime(uint16_t* date, uint16_t* time) {
   // Return date using FS_DATE macro to format fields.
-  *date = FS_DATE(year(), month(), day());
+  *date = FAT_DATE(year(), month(), day());
 
   // Return time using FS_TIME macro to format fields.
-  *time = FS_TIME(hour(), minute(), second());
+  *time = FAT_TIME(hour(), minute(), second());
 }
 
 void sprintDateTime(char* sHTime,char* sFNTime) {
@@ -745,8 +735,10 @@ void setup_Interfaces() {  // DONE
     SERIALN.println("RTC has set the system time");
   }
   // Set FS Timestamp callback
-  FsDateTime::callback = dateTime;
-
+//  FATDateTime::callback = dateTime;
+  FSDateTime::setCallback(dateTime);
+  SdFile::dateTimeCallback(dateTime);
+  
 // I2C0
 
 // SPI1
@@ -762,16 +754,11 @@ void setup_Interfaces() {  // DONE
 
 // SD via SdFs
 
-#if !ENABLE_DEDICATED_SPI
-  SERIALN.println(F(
-    "\nFor best performance edit SdFsConfig.h\n"
-    "and set ENABLE_DEDICATED_SPI nonzero")); 
-#endif  // !ENABLE_DEDICATED_SPI
-  // Initialize SD.
-  if (!sd.begin(SD_CONFIG)) {
-      SERIALN.println("SD Initialization failed!!");
+  SD_Begin();
+//  if (!sd.begin(SD_CONFIG)) {
+//      SERIALN.println("SD Initialization failed!!");
 //      return(-1);
-  }
+//  }
 
 }
 
@@ -1198,6 +1185,11 @@ void Shutdown() {  // Done-ish
 /*    Filesystem Functions
 */
 
+int SD_Begin(void) {
+  if (!sd.begin()) {SERIALN.println(F("SdFatSdioEX begin() failed!!"));return(1);}
+  sd.chvol(); // make sdEx the current volume.
+}
+
 int FS_Format_SD(void) {
 //  SERIALN.println();
 //  SERIALN.println(F(
@@ -1220,7 +1212,28 @@ int FS_Format_SD(void) {
   return(1);
 }
 
+int FS_Wipe() {
+  SERIALN.println();
+  SERIALN.println(F(
+    "Are you sure you want to Wipe the SD card?\r\n"
+    "Type 'Y' to continue...\r\n"));
 
+  while (!SERIALN.available()) {yield();}
+  if (SERIALN.read() != 'Y') {
+    SERIALN.println(F("Exiting, 'Y' not typed."));
+    return;
+  }
+  
+  // Use wipe() for no dot progress indicator.
+  if (!sd.wipe(&Serial)) {SERIALN.println(F("Wipe failed."));return(0);}
+
+  // Must reinitialize after wipe.
+  // Initialize at the highest speed supported by the board that is
+  // not over 50 MHz. Try a lower speed if SPI errors occur.  
+  if (!SD_Begin()) {SERIALN.println(F("Wiped, but re-init of SD failed!"));return(0);}
+  Serial.println("SD successfully Wiped.");
+  return(1);
+}
 
 
 
@@ -1255,9 +1268,9 @@ int FS_Format_SD(void) {
   ndx = 0;
   newData = FALSE;
  
-  while (SERIALN.available() > 0 && newData == FALSE) {
+  while (Serial.available() > 0 && newData == FALSE) {
  
-    rc = SERIALN.read();
+    rc = Serial.read();
 
     if (rc != endMarker) {
       receivedChars[ndx] = rc;
@@ -1283,9 +1296,9 @@ int FS_Format_SD(void) {
   ndx = 0;
   newData = FALSE;
  
-  while (SERIALN.available() > 0 && newData == FALSE) {
+  while (Serial.available() > 0 && newData == FALSE) {
  
-    rc = SERIALN.read();
+    rc = Serial.read();
 
     if (rc != endMarker) {
       receivedChars[ndx] = rc;
@@ -1406,13 +1419,13 @@ void CLI_Filesystem()  {
     CLI_GetCommand_Wait(cmd_line,128);
     
     cmd = strtok(cmd_line, " ");
+    arg = strtok(NULL, " ");
     
     if(strcmp(cmd,"ls")==0) { // TEST?
       sd.ls(LS_R | LS_DATE | LS_SIZE);
     }
     
     else if(strcmp(cmd,"cd")==0) { // TEST?
-      arg = strtok(NULL, " ");
       if (!sd.chdir(arg)) {SERIALN.println(F("cd failed"));}
     }
     
