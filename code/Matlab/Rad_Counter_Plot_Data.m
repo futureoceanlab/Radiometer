@@ -56,7 +56,7 @@ Data_TimeHi_perS(i) = sum(squeeze(Ping_Data(i,4,:)));
 
 TokenA              = fread(hDataFile,1,'uint16=>uint16');
 if (tokenA ~= 65021) %0xFDFD 
-    fprintf('Found a wrong Token in HeartBeat B! \nShould be [%u], but we got [%u].\n',65021 * NSamples,TokenA)
+    fprintf('Found a wrong Token in HeartBeat A! \nShould be [%u], but we got [%u].\n',65021 * NSamples,TokenA)
     break;
 end
 
