@@ -618,6 +618,10 @@ void BuzzerDash() {
 
 
 
+
+
+
+
 /*      Helper Functions
  */
 
@@ -961,6 +965,8 @@ void Log_Data() {
       SERIALN.print(" Secs:   "); SERIALN.println((double)LS_s,3); // In Seconds
       SERIALN.print(" Pulses: "); SERIALN.println((uint32_t)LastSec_Pulses); // In number
       SERIALN.print(" TimeHi: "); SERIALN.println((double)LS_ph,3); // In %
+
+      MetaFile.printf("UTC: %u, Secs: %f.3, Pulses: %u, TimeHi: %f.3 \r\n",now(),LS_s,LastSec_Pulses,LS_ph);
       
       // Check for change of HamRdy signal once per Heartbeat
       HamIsRdy = digitalRead(pin_HamRdy);
