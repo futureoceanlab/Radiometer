@@ -20,18 +20,18 @@ nPackets    = floor(fileInfo.bytes / 8);
 nHeartBeats = floor(nPackets/(Nsamples+2));
 nMinutes    = floor(nSecs/60);
 
-HeartBeat_S      = zeros(1,nHeartBeats);
-HeartBeat_uS     = zeros(1,nHeartBeats);
+HeartBeat_UTC_S  = zeros(1,nHeartBeats);
+HeartBeat_UTC_uS = zeros(1,nHeartBeats);
 HeartBeat_X_inc  = zeros(1,nHeartBeats);
 HeartBeat_Y_inc  = zeros(1,nHeartBeats);
 
 Ping_Data        = zeros(nHeartBeats,4,NSamples);
 
-HeartBeat_nSecs  = zeros(1,nHeartBeats);
+HeartBeat_uSecs  = zeros(1,nHeartBeats);
 HeartBeat_Pulses = zeros(1,nHeartBeats);
 HeartBeat_TimeHi = zeros(1,nHeartBeats);
 
-Minute_nSecs  = zeros(1,nMinutes);
+Minute_uSecs  = zeros(1,nMinutes);
 Minute_Pulses = zeros(1,nMinutes);
 Minute_TimeHi = zeros(1,nMinutes);
 
@@ -44,7 +44,7 @@ if (TokenD ~= 64764 * NSamples) %0xFCFC
     break;
 end
 
-HeartBeat_nSecs(i)  = sum(squeeze(Ping_Data(i,2,:)));
+HeartBeat_uSecs(i)  = sum(squeeze(Ping_Data(i,2,:)));
 HeartBeat_Pulses(i) = sum(squeeze(Ping_Data(i,3,:)));
 HeartBeat_TimeHi(i) = sum(squeeze(Ping_Data(i,4,:)));
 
@@ -54,7 +54,7 @@ if (tokenA ~= 65021) %0xFDFD
 end
 
 HeartBeat_X_inc(i)  = fread(hDataFile,1,'uint16=>uint16');
-HeartBeat_S(i)      = fread(hDataFile,1,'uint32=>uint32');
+HeartBeat_UTC_S(i)      = fread(hDataFile,1,'uint32=>uint32');
 
 TokenB              = fread(hDataFile,1,'uint16=>uint16');
 if (tokenB ~= 65278) %0xFEFE
@@ -62,7 +62,7 @@ if (tokenB ~= 65278) %0xFEFE
 end
 
 HeartBeat_Y_inc(i)  = fread(hDataFile,1,'uint16=>uint16');
-HeartBeat_uS(i)     = fread(hDataFile,1,'uint32=>uint32');
+HeartBeat_UTC_uS(i)     = fread(hDataFile,1,'uint32=>uint32');
 
 end
 
@@ -72,7 +72,7 @@ for   m  = 1:nMinutes
     
     for  s=1:60
         i = 60*(m-1)+s;
-        Minute_nSecs(m)  = Minute_nSecs(m)  + HeartBeat_nSecs(i);
+        Minute_uSecs(m)  = Minute_uSecs(m)  + HeartBeat_uSecs(i);
         Minute_Pulses(m) = Minute_Pulses(m) + HeartBeat_Pulses(i);
         Minute_TimeHi(m) = Minute_TimeHi(m) + HeartBeat_TimeHi(i);
     end
