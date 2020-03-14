@@ -1101,9 +1101,6 @@ x             Write local buffer into global read buffer
 
   
   if(fHandlePings==TRUE) {
-
-//  SERIALN.println("Ping");
-
 /*    0. Suspend Interrupts and check time
 */
     noInterrupts();    
@@ -1111,10 +1108,10 @@ x             Write local buffer into global read buffer
   
 /*    1. PULL DATA FROM CMOD
  Data Packet Format [8B]:
-   [2B] TOKEN_DATA
-   [2B] uint16_t time since last ping in usec
-   [2B] uint16_t Pulses
-   [2B] uint16_t TimeHi
+    [2B] TOKEN_DATA
+    [2B] uint16_t time since last ping in usec
+    [2B] uint16_t Pulses
+    [2B] uint16_t TimeHi
  */
     Data_Buffer16[0] = TOKEN_DATA;
     Data_Buffer16[1] = (uint16_t) round((CPU_cycles - CPU_cycles_last)/cpu_clicks_per_us); // us between pings, up to 65ms
@@ -1168,6 +1165,9 @@ x             Write local buffer into global read buffer
     } // if(--PingCount == 0)
     interrupts();
   } // if(fHandlePings==TRUE)
+  else {
+    PingCount = Ns[ThisDive_SampleRateCode];
+  }
 }
 
 
