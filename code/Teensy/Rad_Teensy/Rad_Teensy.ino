@@ -1117,7 +1117,7 @@ x             Write local buffer into global read buffer
    [2B] uint16_t TimeHi
  */
     Data_Buffer16[0] = TOKEN_DATA;
-    Data_Buffer16[1] = round((CPU_cycles - CPU_cycles_last)/cpu_clicks_per_us); // us between pings, up to 65ms
+    Data_Buffer16[1] = (uint16_t) round((CPU_cycles - CPU_cycles_last)/cpu_clicks_per_us); // us between pings, up to 65ms
     CPU_cycles_last = CPU_cycles;
     
 //          Set Dtog High and read 16-bit bus into local buffer
@@ -1137,9 +1137,9 @@ x             Write local buffer into global read buffer
 
 /*    2. Increment per-second counters
  */       
-    uSecsSoFar  += Data_Buffer16[0];
-    TimeHiSoFar += Data_Buffer16[1];
-    PulsesSoFar += Data_Buffer16[2];
+    uSecsSoFar  += Data_Buffer16[1];
+    TimeHiSoFar += Data_Buffer16[2];
+    PulsesSoFar += Data_Buffer16[3];
 
 
 /*    3. Heartbeat: WRITE 1s MARKER TO SD AND TRIGGER SERIAL HEARTBEAT
