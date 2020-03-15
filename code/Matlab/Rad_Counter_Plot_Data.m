@@ -1,5 +1,8 @@
-DataFileName='FOL_WHOI_Radiometer_2020_03_14__20_40_57_f00.bin';
-MetaFileName='FOL_WHOI_Radiometer_2020_03_14__20_40_57.txt';
+% DataFileName='FOL_WHOI_Radiometer_2020_03_14__20_40_57_f00.bin';
+%MetaFileName='FOL_WHOI_Radiometer_2020_03_14__20_40_57.txt';
+
+DataFileName='FOL_WHOI_Radiometer_2020_03_14__22_58_28_f00.bin';
+MetaFileName='FOL_WHOI_Radiometer_2020_03_14__22_58_28.txt';
 
 %hMetaFile = fopen(MetaFileName);
 hDataFile = fopen(DataFileName);
@@ -52,7 +55,8 @@ for i = 1:nHeartBeats
 
     Data_Secs_perS(i)   = sum(squeeze(Ping_Data(i,2,:)))/1000000;
     Data_Pulses_perS(i) = sum(squeeze(Ping_Data(i,3,:)));
-    Data_PcntHi_perS(i) = 16*sum(squeeze(Ping_Data(i,4,:)))/10000000;
+%    Data_PcntHi_perS(i) = 16*sum(squeeze(Ping_Data(i,4,:)))/10000000;
+    Data_PcntHi_perS(i) = sum(squeeze(Ping_Data(i,4,:)));
 
     TokenA              = fread(hDataFile,1,'uint16=>uint16');
     if (TokenA ~= 253) %0xFD
@@ -92,7 +96,7 @@ clf
 hold on;
 plot(((1:nHeartBeats)/60),Data_Secs_perS(1:nHeartBeats) ,'R','LineWidth',1)
 plot(((1:nHeartBeats)/60),log10(Data_Pulses_perS(1:nHeartBeats)),'G','LineWidth',1)
-plot(((1:nHeartBeats)/60),Data_PcntHi_perS(1:nHeartBeats),'B','LineWidth',1)
+plot(((1:nHeartBeats)/60),log10(Data_PcntHi_perS(1:nHeartBeats)),'B','LineWidth',1)
 hold off;
 
 

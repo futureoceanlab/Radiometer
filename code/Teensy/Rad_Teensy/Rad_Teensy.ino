@@ -980,8 +980,8 @@ void Log_Data() {
       // Check for change of HamRdy signal once per Heartbeat
       HamIsRdy = digitalRead(pin_HamRdy);
       if (HamIsRdy!=HamWasRdy) {
-        if(HamIsRdy == 1) {SERIALN.println(" Hamamatsu Ready! ");}
-        else              {SERIALN.println(" Hamamatsu On Standby... ");};
+        if(HamIsRdy == 1) {SERIALN.println();SERIALN.println(" Hamamatsu Ready! ");}
+        else              {SERIALN.println();SERIALN.println(" Hamamatsu On Standby... ");};
         HamWasRdy = HamIsRdy;
       } // if (HamIsRdy!=HamWasRdy)
 
