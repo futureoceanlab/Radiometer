@@ -919,8 +919,12 @@ void Log_Data() {
                         eval=0,
                         HamWasRdy=1,    // Start high to trigger opening "not ready" msg
                         HamIsRdy=1;
+  static bool           fHeartbeat_Local=LOW;
+  static uint32_t       LS_uSecs_Local,
+                        LS_Pulses_Local,
+                        LS_TimeHi_Local;
+  static double         LS_Secs, LS_PercentHi;
   static char           cmd;
-  static double         LS_s, LS_ph;
 
 
   while(fStopCount == FALSE) {
@@ -949,24 +953,29 @@ void Log_Data() {
     
     /*  2. Check for Heartbeat: Serial out, Query Sensors     
     */
-    
-    if(fHeartbeat==HIGH) {
-      fHeartbeat=LOW;    
-
-/*      SERIALN.println("  ");
-      SERIALN.print(" uSecs:  "); SERIALN.println((uint32_t)LastSec_uSecs ); // In Seconds
-      SERIALN.print(" Pulses: "); SERIALN.println((uint32_t)LastSec_Pulses); // In number
-      SERIALN.print(" TimeHi: "); SERIALN.println((uint32_t)LastSec_TimeHi); // In %
-*/      
-      LS_s =  1.0 * LastSec_uSecs  / 1000000.0;
-      LS_ph = 16.0 * LastSec_TimeHi /   10000000.0;
+    noInterrupts();
+    fHeartbeat_Local = fHeartbeat;
+    interrupts();
+    if(fHeartbeat_Local==HIGH) {
+      noInterrupts();
+      fHeartbeat = LOW;
+      LS_uSecs_Local    = LastSec_uSecs;
+      LS_Pulses_Local   = LastSec_Pulses;
+      LS_TimeHi_Local   = LastSec_TimeHi;
+      interrupts();
+      
+      // NOTE: Technically we should protect LastSec_* from race conditions, as
+      // ISR_PING might interrupt ant chenge them midswing -- but in this case, 
+      // LastSec is only updates 
+      LS_Secs      =  1.0 * LS_uSecs_Local  / 1000000.0;
+      LS_PercentHi = 16.0 * LS_TimeHi_Local /   10000000.0;
       
       SERIALN.println("  ");
-      SERIALN.print(" Secs:   "); SERIALN.println((double)LS_s,3); // In Seconds
+      SERIALN.print(" Secs:   "); SERIALN.println((double)LS_Secs,3); // In Seconds
       SERIALN.print(" Pulses: "); SERIALN.println((uint32_t)LastSec_Pulses); // In number
-      SERIALN.print(" TimeHi: "); SERIALN.println((double)LS_ph,3); // In %
+      SERIALN.print(" TimeHi: "); SERIALN.println((double)LS_PercentHi,3); // In %
 
-      MetaFile.printf("UTC: %u, Secs: %f.3, Pulses: %u, TimeHi: %f.3 \r\n",now(),LS_s,LastSec_Pulses,LS_ph);
+      MetaFile.printf("UTC: %u, Secs: %f.3, Pulses: %u, TimeHi: %f.3 \r\n",now(),LS_Secs,LS_Pulses_Local,LS_PercentHi);
       
       // Check for change of HamRdy signal once per Heartbeat
       HamIsRdy = digitalRead(pin_HamRdy);

@@ -1,5 +1,5 @@
-DataFileName='FOL_WHOI_Radiometer_2020_03_13__19_02_29_f00.bin';
-MetaFileName='FOL_WHOI_Radiometer_2020_03_13__19_02_29_f00.txt';
+DataFileName='FOL_WHOI_Radiometer_2020_03_14__20_40_57_f00.bin';
+MetaFileName='FOL_WHOI_Radiometer_2020_03_14__20_40_57.txt';
 
 %hMetaFile = fopen(MetaFileName);
 hDataFile = fopen(DataFileName);
@@ -18,59 +18,59 @@ fileInfo = dir(DataFileName);
 % number of complete heartbeats (aka number of seconds) from file size:
 nPackets    = floor(fileInfo.bytes / 8);
 nHeartBeats = floor(nPackets/(Nsamples+2));
-nMinutes    = floor(nSecs/60);
+nMinutes    = floor(nHeartBeats/60);
 
 % Raw data: 
 %    Data per Ping 
-Ping_Data        = zeros(nHeartBeats,4,NSamples);
+Ping_Data        = zeros(nHeartBeats,4,Nsamples);
 %    Data per Heartbeat 
 HeartBeat_UTC_S  = zeros(1,nHeartBeats);
 HeartBeat_UTC_u  = zeros(1,nHeartBeats);
 HeartBeat_X_inc  = zeros(1,nHeartBeats);
 HeartBeat_Y_inc  = zeros(1,nHeartBeats);
 
-
 % Derived Data:
 %    Ping Data per Second technically, per HB)
-Data_uSecs_perS  = zeros(1,nHeartBeats);
+Data_Secs_perS   = zeros(1,nHeartBeats);
 Data_Pulses_perS = zeros(1,nHeartBeats);
-Data_TimeHi_perS = zeros(1,nHeartBeats);
+Data_PcntHi_perS = zeros(1,nHeartBeats);
 %    Ping Data per Minute technically, per 60 HB)
-Data_uSecs_perM  = zeros(1,nMinutes);
+Data_Secs_perM   = zeros(1,nMinutes);
 Data_Pulses_perM = zeros(1,nMinutes);
-Data_TimeHi_perM = zeros(1,nMinutes);
+Data_PcntHi_perM = zeros(1,nMinutes);
 
 
 for i = 1:nHeartBeats
-Ping_Data(i,:,:)    = fread(hDataFile,[4,Nsamples],'uint16=>uint16');
 
-TokenD              = sum(squeeze(Ping_Data(i,1,:)));
-if (TokenD ~= 64764 * NSamples) %0xFCFC
-    fprintf('Found a wrong Token in Ping_Data! \nShould be [%u], but we got [%u].\n',  64764 * NSamples,TokenA)
-    break;
-end
+    Ping_Data(i,:,:)    = fread(hDataFile,[4,Nsamples],'uint16=>uint16');
 
-Data_uSecs_perS(i)  = sum(squeeze(Ping_Data(i,2,:)));
-Data_Pulses_perS(i) = sum(squeeze(Ping_Data(i,3,:)));
-Data_TimeHi_perS(i) = sum(squeeze(Ping_Data(i,4,:)));
+    TokenD              = sum(squeeze(Ping_Data(i,1,:)));
+    if (TokenD ~= 252 * Nsamples) %0xFC
+        fprintf('Found a wrong TokenD at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n', i, 252 * Nsamples,TokenD)
+        break;
+    end
 
-TokenA              = fread(hDataFile,1,'uint16=>uint16');
-if (tokenA ~= 65021) %0xFDFD 
-    fprintf('Found a wrong Token in HeartBeat A! \nShould be [%u], but we got [%u].\n',65021 * NSamples,TokenA)
-    break;
-end
+    Data_Secs_perS(i)   = sum(squeeze(Ping_Data(i,2,:)))/1000000;
+    Data_Pulses_perS(i) = sum(squeeze(Ping_Data(i,3,:)));
+    Data_PcntHi_perS(i) = 16*sum(squeeze(Ping_Data(i,4,:)))/10000000;
 
-HeartBeat_X_inc(i)  = fread(hDataFile,1,'uint16=>uint16');
-HeartBeat_UTC_S(i)      = fread(hDataFile,1,'uint32=>uint32');
+    TokenA              = fread(hDataFile,1,'uint16=>uint16');
+    if (TokenA ~= 253) %0xFD
+        fprintf('Found a wrong TokenA at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n',i,253,TokenA)
+        break;
+    end
 
-TokenB              = fread(hDataFile,1,'uint16=>uint16');
-if (tokenB ~= 65278) %0xFEFE
-    fprintf('Found a wrong Token in HeartBeat B! \nShould be [%u], but we got [%u].\n',65278 * NSamples,TokenB)
-    break;
-end
+    HeartBeat_X_inc(i)  = fread(hDataFile,1,'uint16=>uint16');
+    HeartBeat_UTC_S(i)  = fread(hDataFile,1,'uint32=>uint32');
 
-HeartBeat_Y_inc(i)  = fread(hDataFile,1,'uint16=>uint16');
-HeartBeat_UTC_u(i)     = fread(hDataFile,1,'uint32=>uint32');
+    TokenB              = fread(hDataFile,1,'uint16=>uint16');
+    if (TokenB ~= 254) %0xFE
+        fprintf('Found a wrong TokenB at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n',i,254,TokenB)
+        break;
+    end
+
+    HeartBeat_Y_inc(i)  = fread(hDataFile,1,'uint16=>uint16');
+    HeartBeat_UTC_u(i)  = fread(hDataFile,1,'uint32=>uint32');
 
 end
 
@@ -80,9 +80,9 @@ for   m  = 1:nMinutes
     
     for  s=1:60
         i = 60*(m-1)+s;
-        Data_uSecs_perM(m)  = Data_uSecs_perM(m)  + Data_uSecs_perS(i);
+        Data_Secs_perM(m)   = Data_Secs_perM(m)   + Data_Secs_perS(i);
         Data_Pulses_perM(m) = Data_Pulses_perM(m) + Data_Pulses_perS(i);
-        Data_TimeHi_perM(m) = Data_TimeHi_perM(m) + Data_TimeHi_perS(i);
+        Data_PcntHi_perM(m) = Data_PcntHi_perM(m) + Data_PcntHi_perS(i);
     end
     
 end
@@ -90,10 +90,9 @@ end
 figure(2)
 clf
 hold on;
-plot(1:nMinutes,log10(Minute_Pulses(1:end)/60),'b','LineWidth',3)
-plot(((1:nHeartBeats)/60),log10(Data_Pulses_perS(1:nHeartBeats)),'g','LineWidth',1)
-%plot((61:nMins*60)/60,log10(sCounts(61:nMins*60)),'.','MarkerSize',1)
-%plot((61:nMinutes*60)/60,log10(Minute_Pulses(61:nMins*60)),'g','LineWidth',1)
+plot(((1:nHeartBeats)/60),Data_Secs_perS(1:nHeartBeats) ,'R','LineWidth',1)
+plot(((1:nHeartBeats)/60),log10(Data_Pulses_perS(1:nHeartBeats)),'G','LineWidth',1)
+plot(((1:nHeartBeats)/60),Data_PcntHi_perS(1:nHeartBeats),'B','LineWidth',1)
 hold off;
 
 
