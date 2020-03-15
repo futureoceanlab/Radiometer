@@ -382,9 +382,9 @@
 /*    Gloabl Variables: Per Dive Data      
 */
 char                ThisDive_CruiseName[] =  "WHOI OTZ, March 2020";
-char                ThisDive_ShipName[] =    "Armstrong";
-char                ThisDive_RadName[] =     "Thompson";
-char                ThisDive_Msg[128];
+char                ThisDive_ShipName[] =    "R/V Neil Armstrong";
+char                ThisDive_RadName[] =     "Radiometer \"Thompson\"";
+char                ThisDive_Header_Msg[128] = "None";
 uint8_t             ThisDive_SampleRateCode = 0;    // 0...8
 uint8_t             ThisDive_Duration_Hours = 12;   //
 uint8_t             ThisDive_NumFiles = N_Files;    //
@@ -855,39 +855,37 @@ int  Open_Files() { // DONE
 
     if(!MetaFile.open(Filename_Text, O_RDWR | O_CREAT)) {  errorHalt(ERR_MSG_FILE_OPEN_FAILED); }
 
-    MetaFile.printf("* WHOI/MIT Future Ocean Lab Radiometer Data File \r\n");
-    MetaFile.printf("*  \r\n");
-    MetaFile.printf("* Software Version: %f \r\n",FOL_RAD_VV);
-    MetaFile.printf("*  \r\n");
-    MetaFile.printf("* %s, %u \r\n",ThisDive_ShipName,ThisDive_CruiseName);
-    MetaFile.printf("*  \r\n");
-    MetaFile.printf("* File Created at %s \r\n",HeaderTime);
-    MetaFile.printf("*  \r\n");
-    MetaFile.printf("* Sampling Rate: 1GHz FPGA subsampled at %uHz\r\n",Ns[ThisDive_SampleRateCode]);
-    MetaFile.printf("*  \r\n");
-    MetaFile.printf("* Each Ping generates a 6B binary data packet: \r\n");
-    MetaFile.printf("*    [2B] <Microseconds since last ping>  \r\n");
-    MetaFile.printf("*    [2B] <Pulse Count>  \r\n");
-    MetaFile.printf("*    [2B] <TimeHi mod 16>  \r\n");
-    MetaFile.printf("*  \r\n");
-    MetaFile.printf("* Sensor data is stored asynchronously in  18B packets:  \r\n");
-    MetaFile.printf("*    [6B] 0xFDFDFDFDFDFD  \r\n");
-    MetaFile.printf("*    [4B] <UTC microseconds>  \r\n");
-    MetaFile.printf("*    [2B] <X_Inclination> \r\n");
-    MetaFile.printf("*    [2B] <Y_Inclination> \r\n");
-    MetaFile.printf("*    [4B] 0xFDFDFDFD  \r\n");
-    MetaFile.printf("*  \r\n");
-    MetaFile.printf("* A 1Hz Heartbeat is stored in a 18B packet as: \r\n");
-    MetaFile.printf("*    [6B] 0xFCFCFCFCFCFC  \r\n");
-    MetaFile.printf("*    [4B] <UTC seconds> \r\n");
-    MetaFile.printf("*    [4B] <UTC microseconds>  \r\n");
-    MetaFile.printf("*    [4B] 0xFCFCFCFC  \r\n");
-    MetaFile.printf("*  \r\n");
-    MetaFile.printf("*  \r\n");
+    MetaFile.printf(F("* WHOI/MIT Future Ocean Lab Radiometer Data File \r\n"));
+    MetaFile.printf(F("*  \r\n"));
+    MetaFile.printf(F("* Software Version: %f \r\n"),FOL_RAD_VV);
+    MetaFile.printf(F("*  \r\n"));
+    MetaFile.printf(F("* %s, %s, %s \r\n"),ThisDive_ShipName,ThisDive_CruiseName,ThisDive_RadName);
+    MetaFile.printf(F("*  \r\n"));
+    MetaFile.printf(F("* Dive Message: %s \r\n"),ThisDive_Header_Msg);
+    MetaFile.printf(F("*  \r\n"));
+    MetaFile.printf(F("* File Created at %s \r\n"),HeaderTime);
+    MetaFile.printf(F("*  \r\n"));
+    MetaFile.printf(F("* Sampling Rate: 1GHz FPGA subsampled at %uHz\r\n"),Ns[ThisDive_SampleRateCode]);
+    MetaFile.printf(F("*  \r\n"));
+    MetaFile.printf(F("* Each Ping generates an 8B binary Data Packet: \r\n"));
+    MetaFile.printf(F("*    [2B] 0xFC00 <-- Token indicating Data Packet  \r\n"));
+    MetaFile.printf(F("*    [2B] <Microseconds since last ping>  \r\n"));
+    MetaFile.printf(F("*    [2B] <Pulse Count>  \r\n"));
+    MetaFile.printf(F("*    [2B] <TimeHi mod 16>  \r\n"));
+    MetaFile.printf(F("*  \r\n"));
+    MetaFile.printf(F("* A 1Hz Heartbeat is stored in two 8B Packets: \r\n"));
+    MetaFile.printf(F("*    [2B] 0xFD00 <-- Token indicating Heartbeat Packet A \r\n"));
+    MetaFile.printf(F("*    [2B] <X_Inclination>  \r\n"));
+    MetaFile.printf(F("*    [4B] <UTC seconds> \r\n"));
+    MetaFile.printf(F("*    [2B] 0xFE00 <-- Token indicating Heartbeat Packet A \r\n"));
+    MetaFile.printf(F("*    [2B] <Y_Inclination>  \r\n"));
+    MetaFile.printf(F("*    [4B] <UTC microseconds>  \r\n"));
+    MetaFile.printf(F("*  \r\n"));
+    MetaFile.printf(F("*  \r\n"));
     MetaFile.flush();
 
     SERIALN.println(" ");
-    SERIALN.println("Files opened and preallocated...  ");
+    SERIALN.println(F("Files opened and preallocated...  "));
 
     return 0;
 }

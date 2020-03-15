@@ -1,8 +1,11 @@
-% DataFileName='FOL_WHOI_Radiometer_2020_03_14__20_40_57_f00.bin';
-%MetaFileName='FOL_WHOI_Radiometer_2020_03_14__20_40_57.txt';
+% DataFileName='Data/FOL_WHOI_Radiometer_2020_03_14__05_25_08.bin';
+% MetaFileName='Data/FOL_WHOI_Radiometer_2020_03_14__05_25_08.txt';
 
-DataFileName='FOL_WHOI_Radiometer_2020_03_14__22_58_28_f00.bin';
-MetaFileName='FOL_WHOI_Radiometer_2020_03_14__22_58_28.txt';
+DataFileName='Data/FOL_WHOI_Radiometer_2020_03_14__20_40_57_f00.bin';
+MetaFileName='Data/FOL_WHOI_Radiometer_2020_03_14__20_40_57.txt';
+
+% DataFileName='Data/FOL_WHOI_Radiometer_2020_03_14__22_58_28_f00.bin';
+% MetaFileName='Data/FOL_WHOI_Radiometer_2020_03_14__22_58_28.txt';
 
 %hMetaFile = fopen(MetaFileName);
 hDataFile = fopen(DataFileName);
@@ -11,10 +14,6 @@ hDataFile = fopen(DataFileName);
 % faster to code. Sorry, user (aka future me)!
 Nsamples = 1000; % 2000, 4000, 8000, 10000, 16000, 25000, 40000  
 
-% fseek(hDataFile, 0, 'eof');
-% Nchunks =  ftell(hDataFile)/4096;
-% fseek(hDataFile, 0, 'bof');
-
 fileInfo = dir(DataFileName);
 
 % Each Data packet is 8B, and each heartbeat is 16B, so we can infer the 
@@ -22,6 +21,7 @@ fileInfo = dir(DataFileName);
 nPackets    = floor(fileInfo.bytes / 8);
 nHeartBeats = floor(nPackets/(Nsamples+2));
 nMinutes    = floor(nHeartBeats/60);
+nPings      = nHeartBeats *  Nsamples;
 
 % Raw data: 
 %    Data per Ping 
@@ -94,10 +94,41 @@ end
 figure(2)
 clf
 hold on;
-plot(((1:nHeartBeats)/60),Data_Secs_perS(1:nHeartBeats) ,'R','LineWidth',1)
+% plot(((1:nHeartBeats)/60),Data_Secs_perS(1:nHeartBeats) ,'R','LineWidth',1)
 plot(((1:nHeartBeats)/60),log10(Data_Pulses_perS(1:nHeartBeats)),'G','LineWidth',1)
 plot(((1:nHeartBeats)/60),log10(Data_PcntHi_perS(1:nHeartBeats)),'B','LineWidth',1)
 hold off;
+
+TMP_Pulses = reshape(transpose(squeeze(Ping_Data(:,4,:))),[1,nPings]);
+TMP_TimeHi = reshape(transpose(squeeze(Ping_Data(:,3,:))),[1,nPings]);
+
+figure(3)
+clf
+hold on;
+plot(((1:nPings)),log10(TMP_Pulses(1:nPings)) ,'B','LineWidth',1)
+plot(((1:nPings)),log10(TMP_TimeHi(1:nPings)) ,'G','LineWidth',1)
+hold off;
+
+N_fft = nPings/2 +1;
+
+fft_Pulses = fft(TMP_Pulses);
+fft_Pulses_P2 = abs(fft_Pulses/nPings);
+fft_Pulses_P1 = fft_Pulses_P2(1:N_fft);
+fft_Pulses_P1(2:end-1) = 2*fft_Pulses_P1(2:end-1);
+
+fft_TimeHI = fft(TMP_TimeHi);
+fft_TimeHI_P2 = abs(fft_TimeHI/nPings);
+fft_TimeHI_P1 = fft_TimeHI_P2(1:N_fft);
+fft_TimeHI_P1(2:end-1) = 2*fft_TimeHI_P1(2:end-1);
+
+figure(4)
+PlotRange4 = 1:nPings/20;
+clf
+hold on;
+plot(PlotRange4, log10(fft_TimeHI_P1(PlotRange4)) ,'G','LineWidth',1)
+plot(PlotRange4, log10(fft_Pulses_P1(PlotRange4)) ,'B','LineWidth',1)
+hold off;
+
 
 
 % hSecData = fopen('~/CPS.bin','w+');
