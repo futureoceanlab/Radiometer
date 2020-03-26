@@ -1,0 +1,65 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1561\cocoasubrtf600
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 Radiometer Code Updating\
+\
+0. 	Make sure the wifi puck is on and broadcasting network PiNonsuch (PW is Bostelmann)\
+\
+1.	Plug the penetrator adapter into the Radiometer\
+\
+2.	Attach the wires as follows:\
+	a.	+12VDC	BLACK wire\
+	b.	GND		WHITE Wire\
+	c. 	Serial to  the DB9  adapter\
+\
+3. 	Wait for a  while for the Radiometer to boot  up\
+\
+4. 	Connect your laptop  to the WiFi network PiNonsuch\
+\
+%%%%%%  IF CONNECTED TO THE INTERNET\
+\
+5. 	type:\
+		ssh pi@FOLRadiometer2.local\
+	password is Bostelmann\
+\
+6. 	cd src/Radiometer/\
+\
+7.        git pull\
+\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+\cf0 %%%%%%   ELSE  IF NOT connected to the internet,\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+\cf0 \
+5\'92.	go to location on your computer where the new RadioPi.* files are located\
+\
+6\'92.	type:\
+		scp RadioPi.*  pi@FOLRadiometer2.local:~/src/Radiometer/\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+\cf0 	password is Bostelmann\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+\cf0 \
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+\cf0 7\'92. 	type:\
+		ssh pi@FOLRadiometer2.local\
+	password is Bostelmann\
+\
+8\'92. 	type:\
+		cd src/Radiometer/\
+\
+%%%%%%  ENDIF\
+\
+9. type:\
+	make\
+\
+10 sudo ./RadioPi.sh\
+\
+\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+\cf0 \
+\
+\
+	}

@@ -379,16 +379,21 @@
 
 
 
-/*    Gloabl Variables: Per Dive Data      
+/*    Optional Directives
 */
-char                ThisDive_CruiseName[] =  "WHOI OTZ, March 2020";
-char                ThisDive_ShipName[] =    "R/V Neil Armstrong";
-char                ThisDive_RadName[] =     "Radiometer \"Thompson\"";
-char                ThisDive_Header_Msg[128] = "None";
-uint8_t             ThisDive_SampleRateCode = 0;    // 0...8
-uint8_t             ThisDive_Duration_Hours = 12;   //
-uint8_t             ThisDive_NumFiles = N_Files;    //
+#define HEARTBEAT_TO_METAFILE 1
 
+
+
+/*    Global Variables: Per Dive Data      
+*/
+char                ThisDive_CruiseName[]    = "WHOI OTZ, March 2020";
+char                ThisDive_ShipName[]      = "R/V Neil Armstrong";
+char                ThisDive_RadName[]       = "Radiometer \"Thompson\"";
+char                ThisDive_Header_Msg[128] = "None";
+uint8_t             ThisDive_SampleRateCode  =  0;    // 0...8
+uint8_t             ThisDive_Duration_Hours  =  12;   //
+uint8_t             ThisDive_NumFiles        =  N_Files;    //
 
 
 
@@ -406,7 +411,6 @@ MAKE_RING_BUFFER(TeensyRing, size_Ring);          //
 
 
 
-
 /*    Gloabl Heartbeat Data     
 */
 elapsedMillis       Heartbeat_MilliClock;    // for ms since last Heartbeat 
@@ -421,7 +425,6 @@ volatile uint16_t   New_Tilt[2];              // Heartbeat queries Tilt and stor
 /*    Gloabl Semaphores 
 */
 volatile bool     fHeartbeat    = FALSE;   //
-volatile bool     fPayload      = FALSE;   //
 volatile bool     fPowerDownNow = FALSE;   //
 volatile bool     fStopCount    = TRUE;    //
 volatile bool     fHandlePings  = FALSE;   //  In place of dettachInterrupt, set to false
@@ -505,7 +508,6 @@ int Write_Data_to_Ring(uint8_t *data, uint8_t data_len) {  // DONE1
      }
     return 0;  // return success to indicate successful push.
 }
-
 
 
 
@@ -814,37 +816,29 @@ void setup_Timers() {
 
 int  Open_Files() { // DONE  
   char              Filename_Root[128],//
-                    Filename_Text[128],//
+                    Filename_Time[24],//
                     Filename_Num[16],
-                    Filename[N_Files][128], 
-                    FileNameTime[24],//
-                    HeaderTime[24];//
+                    Filename[128],//
+                    Header_Time[24];//
                     
-  sprintDateTime(HeaderTime,FileNameTime);
+  sprintDateTime(Header_Time,Filename_Time);
 
   sd.chdir("/");
-  sd.mkdir(FileNameTime);
-  sd.chdir(FileNameTime);
+  sd.mkdir(Filename_Time);
+  sd.chdir(Filename_Time);
   
-// Build Filenames
+// Build Filename Root
   strcpy(Filename_Root,FILENAME_ROOT);
-  strcat(Filename_Root,FileNameTime);
+  strcat(Filename_Root,Filename_Time);
     
-  strcpy(Filename_Text,Filename_Root);
-  strcat(Filename_Text,".txt");
 
+// Open & Preallocate Binary Files
 
   for(int i=0;i<N_Files;++i) {
-    strcpy(Filename[i],Filename_Root);
+    strcpy(Filename,Filename_Root);
     sprintf(Filename_Num,"_f%.2u.bin",i);
-    strcat(Filename[i],Filename_Num);
-  }
-
-
-// Open & Preallocate Files
-
-  for(int i=0;i<N_Files;++i) {
-    if(!DataFile[i].open(Filename[i], O_WRITE | O_CREAT | O_TRUNC)) { 
+    strcat(Filename,Filename_Num);
+    if(!DataFile[i].open(Filename, O_WRITE | O_CREAT | O_TRUNC)) { 
       errorHalt(ERR_MSG_FILE_OPEN_FAILED); 
      }
     if(!DataFile[i].preAllocate(PRE_ALLOCATE_MiBS * ONE_MiB))  
@@ -853,41 +847,44 @@ int  Open_Files() { // DONE
 
 // Open and Fill Header File
 
-    if(!MetaFile.open(Filename_Text, O_RDWR | O_CREAT)) {  errorHalt(ERR_MSG_FILE_OPEN_FAILED); }
+  strcpy(Filename,Filename_Root);
+  strcat(Filename,".txt");
 
-    MetaFile.printf(F("* WHOI/MIT Future Ocean Lab Radiometer Data File \r\n"));
-    MetaFile.printf(F("*  \r\n"));
-    MetaFile.printf(F("* Software Version: %f \r\n"),FOL_RAD_VV);
-    MetaFile.printf(F("*  \r\n"));
-    MetaFile.printf(F("* %s, %s, %s \r\n"),ThisDive_ShipName,ThisDive_CruiseName,ThisDive_RadName);
-    MetaFile.printf(F("*  \r\n"));
-    MetaFile.printf(F("* Dive Message: %s \r\n"),ThisDive_Header_Msg);
-    MetaFile.printf(F("*  \r\n"));
-    MetaFile.printf(F("* File Created at %s \r\n"),HeaderTime);
-    MetaFile.printf(F("*  \r\n"));
-    MetaFile.printf(F("* Sampling Rate: 1GHz FPGA subsampled at %uHz\r\n"),Ns[ThisDive_SampleRateCode]);
-    MetaFile.printf(F("*  \r\n"));
-    MetaFile.printf(F("* Each Ping generates an 8B binary Data Packet: \r\n"));
-    MetaFile.printf(F("*    [2B] 0xFC00 <-- Token indicating Data Packet  \r\n"));
-    MetaFile.printf(F("*    [2B] <Microseconds since last ping>  \r\n"));
-    MetaFile.printf(F("*    [2B] <Pulse Count>  \r\n"));
-    MetaFile.printf(F("*    [2B] <TimeHi mod 16>  \r\n"));
-    MetaFile.printf(F("*  \r\n"));
-    MetaFile.printf(F("* A 1Hz Heartbeat is stored in two 8B Packets: \r\n"));
-    MetaFile.printf(F("*    [2B] 0xFD00 <-- Token indicating Heartbeat Packet A \r\n"));
-    MetaFile.printf(F("*    [2B] <X_Inclination>  \r\n"));
-    MetaFile.printf(F("*    [4B] <UTC seconds> \r\n"));
-    MetaFile.printf(F("*    [2B] 0xFE00 <-- Token indicating Heartbeat Packet A \r\n"));
-    MetaFile.printf(F("*    [2B] <Y_Inclination>  \r\n"));
-    MetaFile.printf(F("*    [4B] <UTC microseconds>  \r\n"));
-    MetaFile.printf(F("*  \r\n"));
-    MetaFile.printf(F("*  \r\n"));
-    MetaFile.flush();
+  if(!MetaFile.open(Filename, O_RDWR | O_CREAT)) {  errorHalt(ERR_MSG_FILE_OPEN_FAILED); }
 
-    SERIALN.println(" ");
-    SERIALN.println(F("Files opened and preallocated...  "));
+  MetaFile.printf(F("* WHOI/MIT Future Ocean Lab Radiometer Data File \r\n"));
+  MetaFile.printf(F("*  \r\n"));
+  MetaFile.printf("* Software Version: %f \r\n",FOL_RAD_VV);
+  MetaFile.printf(F("*  \r\n"));
+  MetaFile.printf("* %s, %s, %s \r\n",ThisDive_ShipName,ThisDive_CruiseName,ThisDive_RadName);
+  MetaFile.printf(F("*  \r\n"));
+  MetaFile.printf("* Dive Message: %s \r\n",ThisDive_Header_Msg);
+  MetaFile.printf(F("*  \r\n"));
+  MetaFile.printf("* File Created at %s \r\n",Header_Time);
+  MetaFile.printf(F("*  \r\n"));
+  MetaFile.printf("* Sampling Rate: 1GHz FPGA subsampled at %uHz\r\n",Ns[ThisDive_SampleRateCode]);
+  MetaFile.printf(F("*  \r\n"));
+  MetaFile.printf(F("* Each Ping generates an 8B binary Data Packet: \r\n"));
+  MetaFile.printf(F("*    [2B] 0xFC00 <-- Token indicating Data Packet  \r\n"));
+  MetaFile.printf(F("*    [2B] <Microseconds since last ping>  \r\n"));
+  MetaFile.printf(F("*    [2B] <Pulse Count>  \r\n"));
+  MetaFile.printf(F("*    [2B] <TimeHi mod 16>  \r\n"));
+  MetaFile.printf(F("*  \r\n"));
+  MetaFile.printf(F("* A 1Hz Heartbeat is stored in two 8B Packets: \r\n"));
+  MetaFile.printf(F("*    [2B] 0xFD00 <-- Token indicating Heartbeat Packet A \r\n"));
+  MetaFile.printf(F("*    [2B] <X_Inclination>  \r\n"));
+  MetaFile.printf(F("*    [4B] <UTC seconds> \r\n"));
+  MetaFile.printf(F("*    [2B] 0xFE00 <-- Token indicating Heartbeat Packet A \r\n"));
+  MetaFile.printf(F("*    [2B] <Y_Inclination>  \r\n"));
+  MetaFile.printf(F("*    [4B] <UTC microseconds>  \r\n"));
+  MetaFile.printf(F("*  \r\n"));
+  MetaFile.printf(F("*  \r\n"));
+  MetaFile.flush();
 
-    return 0;
+  SERIALN.println();
+  SERIALN.println(F("Files opened and preallocated...  "));
+
+  return 0;
 }
 
 void Start_Count() { // DONE
@@ -895,17 +892,19 @@ void Start_Count() { // DONE
 
   // Startup Hamamatsu
   digitalWrite(pin_HamPwr,HIGH);
-  SERIALN.println("Hamamatsu Powered Up... ");
+  SERIALN.println();
+  SERIALN.println(F("Hamamatsu Powered Up... "));
 
   // Start Counting
   digitalWrite(pin_Reset,LOW);
-  SERIALN.println("Fabric Counters Running... ");
+  SERIALN.println();
+  SERIALN.println(F("Fabric Counters Running... "));
   
   // Start Ping Interrupt
   fHandlePings = TRUE;
-  SERIALN.println(" ");
-  SERIALN.println("Photon counting has begun!");
-  SERIALN.println(" ");
+  SERIALN.println();
+  SERIALN.println(F("Photon counting has begun!"));
+  SERIALN.println();
 
   fStopCount = FALSE;
   
@@ -915,8 +914,8 @@ void Log_Data() {
   
   static int            Count=0,        // Result of Write_Ring_to_SD()
                         eval=0,
-                        HamWasRdy=1,    // Start high to trigger opening "not ready" msg
-                        HamIsRdy=1;
+                        HamWasRdy=3,    // Start high to trigger opening "not ready" msg
+                        HamIsRdy=0;
   static bool           fHeartbeat_Local=LOW;
   static uint32_t       LS_uSecs_Local,
                         LS_Pulses_Local,
@@ -951,20 +950,26 @@ void Log_Data() {
     
     /*  2. Check for Heartbeat: Serial out, Query Sensors     
     */
+    // Essential to pause interrupts here -- we could easily collide with a 
+    // write to fHeartbeat in the PING ISR. Don't let it happen!
     noInterrupts();
     fHeartbeat_Local = fHeartbeat;
     interrupts();
+    
     if(fHeartbeat_Local==HIGH) {
-      noInterrupts();
+
+      // NOTE: It's tempting to protect LastSec_* from race conditions, as
+      // ISR_PING might interrupt and change them midswing.  However, we only 
+      // get to this code if the heartbeat was recently called.  A collision 
+      // thus requires 1s latency -- if that happens, we have other problems!
+
+//      noInterrupts();
       fHeartbeat = LOW;
       LS_uSecs_Local    = LastSec_uSecs;
       LS_Pulses_Local   = LastSec_Pulses;
       LS_TimeHi_Local   = LastSec_TimeHi;
-      interrupts();
+//      interrupts();
       
-      // NOTE: Technically we should protect LastSec_* from race conditions, as
-      // ISR_PING might interrupt ant chenge them midswing -- but in this case, 
-      // LastSec is only updates 
       LS_Secs      =  1.0 * LS_uSecs_Local  / 1000000.0;
       LS_PercentHi = 16.0 * LS_TimeHi_Local /   10000000.0;
       
@@ -973,13 +978,15 @@ void Log_Data() {
       SERIALN.print(" Pulses: "); SERIALN.println((uint32_t)LastSec_Pulses); // In number
       SERIALN.print(" TimeHi: "); SERIALN.println((double)LS_PercentHi,3); // In %
 
+#ifdef HEARTBEAT_TO_METAFILE
       MetaFile.printf("UTC: %u, Secs: %f.3, Pulses: %u, TimeHi: %f.3 \r\n",now(),LS_Secs,LS_Pulses_Local,LS_PercentHi);
-      
+#endif      
+
       // Check for change of HamRdy signal once per Heartbeat
       HamIsRdy = digitalRead(pin_HamRdy);
       if (HamIsRdy!=HamWasRdy) {
-        if(HamIsRdy == 1) {SERIALN.println();SERIALN.println(" Hamamatsu Ready! ");}
-        else              {SERIALN.println();SERIALN.println(" Hamamatsu On Standby... ");};
+        if(HamIsRdy == 1) {SERIALN.println();SERIALN.println(F(" Hamamatsu Ready! "));}
+        else              {SERIALN.println();SERIALN.println(F(" Hamamatsu On Standby... "));};
         HamWasRdy = HamIsRdy;
       } // if (HamIsRdy!=HamWasRdy)
 
@@ -1000,15 +1007,15 @@ void Log_Data() {
       cmd = SERIALN.read();
       switch(cmd)  {
         case 'q': 
-          SERIALN.println(" ");
-          SERIALN.println(" Stopping count... ");
-          SERIALN.println(" ");
+          SERIALN.println();
+          SERIALN.println(F(" Stopping count... "));
+          SERIALN.println();
           fStopCount = TRUE; 
           break;
         default:
-          SERIALN.println(" ");
-          SERIALN.println(" Type 'q' to stop logging and return to command shell");
-          SERIALN.println(" ");
+          SERIALN.println();
+          SERIALN.println(F(" Type 'q' to stop logging and return to command shell"));
+          SERIALN.println();
           break;
       }
     }
@@ -1030,15 +1037,16 @@ void Stop_Count() {
 
   // Start Ping Interrupt
   fHandlePings = FALSE;
-  SERIALN.println(" ");
-  SERIALN.println("Photon counting has stopped. ");
-  SERIALN.println(" ");
+  SERIALN.println();
+  SERIALN.println(F("Photon counting has stopped. "));
   
   digitalWrite(pin_Reset,HIGH);
-  SERIALN.println("Fabric Counters Zeroed... ");
+  SERIALN.println();
+  SERIALN.println(F("Fabric Counters Zeroed... "));
 
   digitalWrite(pin_HamPwr,LOW);
-  SERIALN.println("Hamamatsu Powered Down... ");
+  SERIALN.println();
+  SERIALN.println(F("Hamamatsu Powered Down... "));
 
 }
 
@@ -1062,8 +1070,8 @@ void Close_Files() {
 
   sd.chdir("/");
 
-  SERIALN.println(" ");
-  SERIALN.println(" Files Closed! ");
+  SERIALN.println();
+  SERIALN.println(F(" Files Closed! "));
   
 }
 

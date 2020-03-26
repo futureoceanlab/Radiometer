@@ -1,11 +1,18 @@
 % DataFileName='Data/FOL_WHOI_Radiometer_2020_03_14__05_25_08.bin';
 % MetaFileName='Data/FOL_WHOI_Radiometer_2020_03_14__05_25_08.txt';
 
-DataFileName='Data/FOL_WHOI_Radiometer_2020_03_14__20_40_57_f00.bin';
-MetaFileName='Data/FOL_WHOI_Radiometer_2020_03_14__20_40_57.txt';
+% DataFileName='Data/FOL_WHOI_Radiometer_2020_03_14__20_40_57_f00.bin';
+% MetaFileName='Data/FOL_WHOI_Radiometer_2020_03_14__20_40_57.txt';
 
 % DataFileName='Data/FOL_WHOI_Radiometer_2020_03_14__22_58_28_f00.bin';
 % MetaFileName='Data/FOL_WHOI_Radiometer_2020_03_14__22_58_28.txt';
+
+
+%Mesobot23?
+DataFileName='Data/FOL_WHOI_Radiometer_2020_03_15__00_39_10_f00.bin';
+
+%Mesobot24:
+%DataFileName='Data/FOL_WHOI_Radiometer_2020_03_15__10_18_12.bin';
 
 %hMetaFile = fopen(MetaFileName);
 hDataFile = fopen(DataFileName);
@@ -105,8 +112,8 @@ TMP_TimeHi = reshape(transpose(squeeze(Ping_Data(:,3,:))),[1,nPings]);
 figure(3)
 clf
 hold on;
-plot(((1:nPings)),log10(TMP_Pulses(1:nPings)) ,'B','LineWidth',1)
-plot(((1:nPings)),log10(TMP_TimeHi(1:nPings)) ,'G','LineWidth',1)
+plot((1:nPings)/60000,log10(TMP_Pulses(1:nPings)) ,'B','LineWidth',1)
+plot((1:nPings)/60000,log10(TMP_TimeHi(1:nPings)) ,'G','LineWidth',1)
 hold off;
 
 N_fft = nPings/2 +1;
