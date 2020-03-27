@@ -1,7 +1,7 @@
-function out = RadRead(foldername, divename, radname)
+function out = RadRead(foldername, divename, radname, UTCshift, outfolder, version)
 %%% Jacob Bernstein
 %%% RadRead - Read raw radiometer data, save to .mat database
-%%% 3.18.2020
+%%% 3.18.2020 
 
 %%% Description
 % Input a foldername, RadRead will pull the .txt and .bin files from the folder
@@ -33,11 +33,24 @@ switch nargin
         foldername = [];
         divename = [];
         radname = [];
+        UTCshift = [];
+        outfolder =[];
+        version = [];
     case 1
         divename = [];                    
         radname = [];
+        UTCshift = [];
+        outfolder =[];
+        version = [];
     case 2
         radname = [];
+        UTCshift = [];
+        outfolder =[];
+        version = [];
+    case 3
+        UTCshift = [];
+        outfolder =[];
+        version = [];
 end
 
 if isempty(foldername)
@@ -53,6 +66,14 @@ if isempty(divename)
     divename = input('Input dive name:','s');
 end
 
+if isempty(radname)
+    radname = input('Input radiometer name:','s');
+end
+
+if isempty(UTCshift)
+    UTCshift = input('Input local time shift relative to UTC (hours):');
+end
+    
 %% Open Files
 MetaFile = dir('*.txt');
 DataFiles = dir('*.bin');
@@ -78,13 +99,13 @@ out.nPings      = out.nHeartBeats *  out.Nsamples;
 % Raw data: 
 %    Data per Ping 
 Ping_Data        = zeros(out.nHeartBeats,4,out.Nsamples);
-out.ping_us      = zeros(out.nHeartBeats,out.Nsamples);
+out.ping_uS_delta = zeros(out.nHeartBeats,out.Nsamples);
 out.ping_Pulses  = zeros(out.nHeartBeats,out.Nsamples);
-out.ping_PcntHi  = zeros(out.nHeartBeats,out.Nsamples);
+out.ping_TimeHi  = zeros(out.nHeartBeats,out.Nsamples);
 
 %    Data per Heartbeat 
 out.perS_UTC_S  = zeros(1,out.nHeartBeats);
-out.perS_UTC_u  = zeros(1,out.nHeartBeats);
+out.perS_mS_elapsed  = zeros(1,out.nHeartBeats);
 out.perS_X_inc  = zeros(1,out.nHeartBeats);
 out.perS_Y_inc  = zeros(1,out.nHeartBeats);
 
@@ -109,14 +130,17 @@ for i = 1:out.nHeartBeats
         break;
     end
     
-    out.ping_us(i,:) = squeeze(Ping_Data(i,2,:));
-    out.ping_Pulses(i,:) = squeeze(Ping_Data(i,3,:));
-    out.ping_PcntHi(i,:) = (16/1e7)*squeeze(Ping_Data(i,4,:));
+    out.ping_uS_delta(i,:) = squeeze(Ping_Data(i,2,:));
+    %out.ping_Pulses(i,:) = squeeze(Ping_Data(i,3,:));
+    %out.ping_TimeHi(i,:) = squeeze(Ping_Data(i,4,:));
+    out.ping_TimeHi(i,:) = squeeze(Ping_Data(i,3,:));
+    out.ping_Pulses(i,:) = squeeze(Ping_Data(i,4,:));
     
-    out.perS_Secs(i)   = sum(squeeze(out.ping_us(i,:)))/1000000;
+    
+    out.perS_Secs(i)   = sum(squeeze(out.ping_uS_delta(i,:)))/1000000;
     out.perS_Pulses(i) = sum(squeeze(out.ping_Pulses(i,:)));
 %    Data_PcntHi_perS(i) = 16*sum(squeeze(Ping_Data(i,4,:)))/10000000;
-    out.perS_PcntHi(i) = sum(squeeze(out.ping_PcntHi(i,:)));
+    out.perS_PcntHi(i) = (16/1e7)*double(sum(squeeze(out.ping_TimeHi(i,:))));
 
     TokenA              = fread(hDataFile,1,'uint16=>uint16');
     if (TokenA ~= 253) %0xFD
@@ -134,16 +158,36 @@ for i = 1:out.nHeartBeats
     end
 
     out.perS_Y_inc(i)  = fread(hDataFile,1,'uint16=>uint16');
-    out.perS_UTC_u(i)  = fread(hDataFile,1,'uint32=>uint32');
+    out.perS_mS_elapsed(i)  = fread(hDataFile,1,'uint32=>uint32');
 
 end
 fclose(hDataFile);
 
-out.ping_us = reshape(out.ping_us,[],1);
+%% Postprocess
+%Reshape the ping data
+out.ping_uS_delta = reshape(out.ping_uS_delta,[],1);
 out.ping_Pulses = reshape(out.ping_Pulses,[],1);
-out.ping_PcntHi = reshape(out.ping_PcntHi,[],1);
+out.ping_TimeHi = reshape(out.ping_TimeHi,[],1);
+out.ping_PcntHi = (16/1e4)*out.ping_TimeHi;
 
+%Create .ut and .t timebases
+starttime = datetime(out.perS_UTC_S(1),'ConvertFrom','posixtime') + hours(UTCshift);
+startsecond = 60*(60*starttime.Hour + starttime.Minute) + starttime.Second;
+out.perS_t = startsecond + [0:length(out.perS_Secs)-1];
 
+out.ping_t = startsecond + 1e-3*[0:length(out.ping_uS_delta)-1];
+
+%% Save Data
+if ~isempty(outfolder)
+    if isempty(version)
+        version = input('What is the version number?:');
+    end
+    currdir = pwd;
+    cd(outfolder);
+    fname = sprintf('RadData_%s_%s_%02d',divename,radname,version);
+    save(fname,'out');
+    cd(currdir);
+end
 %{
 for   m  = 1:nMinutes
     
