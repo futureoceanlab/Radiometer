@@ -51,6 +51,11 @@ switch nargin
         UTCshift = [];
         outfolder =[];
         version = [];
+    case 4
+        outfolder = [];
+        version = [];
+    case 5
+        version = [];
 end
 
 if isempty(foldername)
@@ -126,8 +131,10 @@ for i = 1:out.nHeartBeats
 
     TokenD              = sum(squeeze(Ping_Data(i,1,:)));
     if (TokenD ~= 252 * out.Nsamples) %0xFC
-        fprintf('Found a wrong TokenD at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n', i, 252 * Nsamples,TokenD)
-        break;
+        errormessage = sprintf('Found a wrong TokenD at HeartBeat %d! \nShould be %d, but we got %d.\n', i, 252 * out.Nsamples,TokenD);
+        %ME = MException('Rad:TokenD',errormessage);
+        %throw(ME);
+        warning(errormessage);
     end
     
     out.ping_uS_delta(i,:) = squeeze(Ping_Data(i,2,:));
@@ -144,8 +151,11 @@ for i = 1:out.nHeartBeats
 
     TokenA              = fread(hDataFile,1,'uint16=>uint16');
     if (TokenA ~= 253) %0xFD
-        fprintf('Found a wrong TokenA at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n',i,253,TokenA)
-        break;
+        errormessage = sprintf('Found a wrong TokenA at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n',i,253,TokenA);
+        %ME = MException('Rad:TokenA',errormessage);
+        %throw(ME)
+        warning(errormessage);
+        
     end
 
     out.perS_X_inc(i)  = fread(hDataFile,1,'uint16=>uint16');
@@ -153,8 +163,10 @@ for i = 1:out.nHeartBeats
 
     TokenB              = fread(hDataFile,1,'uint16=>uint16');
     if (TokenB ~= 254) %0xFE
-        fprintf('Found a wrong TokenB at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n',i,254,TokenB)
-        break;
+        errormessage = sprintf('Found a wrong TokenB at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n',i,254,TokenB);
+        %ME = MException('Rad:TokenB',errormessage);
+        %throw(ME)
+        warning(errormessage);
     end
 
     out.perS_Y_inc(i)  = fread(hDataFile,1,'uint16=>uint16');
