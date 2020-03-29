@@ -65,7 +65,7 @@
  At sufficiently high flux (~25M cps), adding another photon is more likely 
  to create a collision than a new pulse -- *increasing* the incident flux
  thus actually *decreases* the number of pulses coming out of the comparator. 
- Eventually the sensor fully saturates (~50M cps), with all pixels constantly 
+ Eventually the sensor fully saturates (~100M cps), with all pixels constantly 
  triggered and the comparator permanently high.
 
  On paper, that's annoying: the map between pulse count and infered photon 
@@ -123,9 +123,9 @@
    B.  Data Rates:
 
  The Cmod is sending two 16-bit samples with every ping.  Pings arrive with a 
- frequency of 1, 2, 4, 8, 10, 16, 24, 32 kHz (user selected).  Each ping is 
+ frequency of 1, 2, 4, 8, 10, 16, 25, 40 kHz (user selected).  Each ping is 
  stored along with the elapsed time since previous ping (2B) plus a 2B tag 
- [0xFD] for a total of 8B per ping.  That gives the following table of data rates:
+ [0xFD00] for a total of 8B per ping.  That gives the following data rates:
        kHz    kB/s     MB/hr     GB/day
        1         8      29        0.7
        2        16      58        1.5
@@ -137,7 +137,7 @@
        40      320    1150       27
  Note that this does not include any additional payload (sensor data and UTC 
  recorded a few times per second) so this is a minor undercount by < 1%.  Said 
- more succinctly, tthe rates of interest lie within these ranges:
+ more succinctly, the rates of interest lie within these ranges:
 
     8 to 320 kB/s      29 to 1150 MB/hr     0.7 to 27 GB/day 
 
@@ -254,16 +254,16 @@
  32 Bytes [= 18+14]
  
  Data Packet Format [8B]:
-   [2B] 0xFCFC
+   [2B] 0xFC00
    [2B] uint16_t time since last ping in usec
    [2B] uint16_t Pulses
    [2B] uint16_t TimeHi
 
  Heartbeat Format [16B]:
-   [2B] 0xFDFD 
+   [2B] 0xFD00
    [2B] uint16_t X_Tilt
    [4B] uint32_t UTC Seconds
-   [2B] 0xFEFE
+   [2B] 0xFE00
    [2B] uint16_t Y_Tilt
    [4B] uint32_t UTC Microseconds
  
