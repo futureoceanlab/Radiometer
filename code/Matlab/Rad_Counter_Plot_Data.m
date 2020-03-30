@@ -45,7 +45,7 @@ hDataFile = fopen(DataFileName);
 
 % Specify samples per heartbeat -- should get ffrom Meta, but this is 
 % faster to code. Sorry, user (aka future me)!
-Nsamples = 1000; % 2000, 4000, 8000, 10000, 16000, 25000, 40000  
+nSamples = 1000; % 2000, 4000, 8000, 10000, 16000, 25000, 40000  
 Click_Cutoff = floor(999000); % timeHi above this considered saturated
 
 fileInfo = dir(DataFileName);
@@ -61,13 +61,13 @@ if (Data_Offset ~= 0)
     fread(hDataFile,Data_Offset+2,'uint64=>uint64');
 end
 
-nHeartBeats = floor(nPackets/(Nsamples+2));
+nHeartBeats = floor(nPackets/(nSamples+2));
 nMinutes    = floor(nHeartBeats/60);
-nPings      = nHeartBeats *  Nsamples;
+nPings      = nHeartBeats *  nSamples;
 
 % Raw data: 
 %    Data per Ping 
-Ping_Data        = zeros(nHeartBeats,4,Nsamples);
+Ping_RawData        = zeros(nHeartBeats,4,nSamples);
 %    Data per Heartbeat 
 HeartBeat_UTC_S  = zeros(1,nHeartBeats);
 HeartBeat_UTC_u  = zeros(1,nHeartBeats);
@@ -95,11 +95,11 @@ Minute_Pulses   = zeros(1,nMinutes);
 % Loop over heartbeats and read the data...
 for i = 1:nHeartBeats
 
-    Ping_Data(i,:,:)    = fread(hDataFile,[4,Nsamples],'uint16=>uint16');
+    Ping_RawData(i,:,:) = fread(hDataFile,[4,nSamples],'uint16=>uint16');
 
-    TokenD              = sum(squeeze(Ping_Data(i,1,:)));
-    if (TokenD ~= 252 * Nsamples) %0xFC
-        fprintf('Found a wrong TokenD at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n', i, 252 * Nsamples,TokenD)
+    TokenD              = sum(squeeze(Ping_RawData(i,1,:)));
+    if (TokenD ~= 252 * nSamples) %0xFC
+        fprintf('Found a wrong TokenD at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n', i, 252 * nSamples,TokenD)
         break;
     end
     
@@ -128,9 +128,9 @@ fclose(hDataFile);
 
 
 % Construct cleaned & sorted ping data:
-Ping_nSecOn = 1000*reshape(transpose(squeeze(Ping_Data(:,2,:))),[1,nPings]); % uSec --> ns duration of ping
-Ping_nSecHi =   16*reshape(transpose(squeeze(Ping_Data(:,3,:))),[1,nPings]); % *16 for 4-bit prescalar
-Ping_Pulses =      reshape(transpose(squeeze(Ping_Data(:,4,:))),[1,nPings]);
+Ping_nSecOn = 1000*reshape(transpose(squeeze(Ping_RawData(:,2,:))),[1,nPings]); % uSec --> ns duration of ping
+Ping_nSecHi =   16*reshape(transpose(squeeze(Ping_RawData(:,3,:))),[1,nPings]); % *16 for 4-bit prescalar
+Ping_Pulses =      reshape(transpose(squeeze(Ping_RawData(:,4,:))),[1,nPings]);
 
 % Fix initialization bug in Ping_nSecOn from Teensy code...
 Ping_nSecOn(1) = 1e6;
@@ -170,8 +170,9 @@ Ping_Pulses(Saturated_Pings -3) = NaN;
 
 
 
+
 for hb = 1:nHeartBeats
-    Ping_Range = (1:Nsamples) + Nsamples*(hb-1);
+    Ping_Range = (1:nSamples) + nSamples*(hb-1);
     HeartBeat_nSecOn(hb) = sum(Ping_nSecOn(Ping_Range),'omitnan');
     HeartBeat_nSecHi(hb) = sum(Ping_nSecHi(Ping_Range),'omitnan');
     HeartBeat_Pulses(hb) = sum(Ping_Pulses(Ping_Range),'omitnan');
@@ -190,8 +191,21 @@ figure(1)
 clf
 hold on;
 plot((1:nPings)/60000,            Ping_nSecOn(1:nPings) /1e6                     ,'R','LineWidth',1)
-plot((1:nPings)/60000,log10(1e6 * Ping_nSecHi(1:nPings)./Ping_nSecOn(1:nPings))  ,'G','LineWidth',1)
+plot((1:nPings)/60000,log10(6.3e4*Ping_nSecHi(1:nPings)./Ping_nSecOn(1:nPings))  ,'G','LineWidth',1)
 plot((1:nPings)/60000,log10(1e6 * Ping_Pulses(1:nPings)./Ping_nSecOn(1:nPings))  ,'B','LineWidth',1)
+hold off;
+%%%%%%%%%
+
+
+%%%%%%%%%
+Ping_nSecHi_Smoothed = smoothdata(Ping_nSecHi./Ping_nSecOn,'gaussian',20);
+Ping_Pulses_Smoothed = smoothdata(Ping_Pulses./Ping_nSecOn,'gaussian',20);
+
+figure(5)
+clf
+hold on;
+plot((1:nPings)/60000,log10(6.3e4*Ping_nSecHi_Smoothed(1:nPings))  ,'G','LineWidth',1)
+plot((1:nPings)/60000,log10(1e6 * Ping_Pulses_Smoothed(1:nPings))  ,'B','LineWidth',1)
 hold off;
 %%%%%%%%%
 
@@ -200,8 +214,8 @@ hold off;
 figure(2)
 clf
 hold on;
-plot(((1:nHeartBeats)/60),            HeartBeat_nSecOn(1:nHeartBeats) /1e9                               ,'R','LineWidth',1)
-plot(((1:nHeartBeats)/60),log10(1e9 * HeartBeat_nSecHi(1:nHeartBeats)./HeartBeat_nSecOn(1:nHeartBeats))  ,'G','LineWidth',1)
+plot(((1:nHeartBeats)/60),       4 + (HeartBeat_nSecOn(1:nHeartBeats) /1e9)                              ,'R','LineWidth',1)
+plot(((1:nHeartBeats)/60),log10(6.3e7*HeartBeat_nSecHi(1:nHeartBeats)./HeartBeat_nSecOn(1:nHeartBeats))  ,'G','LineWidth',1)
 plot(((1:nHeartBeats)/60),log10(1e9 * HeartBeat_Pulses(1:nHeartBeats)./HeartBeat_nSecOn(1:nHeartBeats))  ,'B','LineWidth',1)
 hold off;
 %%%%%%%%%
@@ -209,14 +223,22 @@ hold off;
 
 %%%%%%%%%
 
-Ping_PulseLength      = Ping_nSecHi      ./ Ping_Pulses;
-HB_PulseLength = HeartBeat_nSecHi ./ HeartBeat_Pulses;
+Ping_PulseLength = Ping_nSecHi      ./ Ping_Pulses;
+HB_PulseLength   = HeartBeat_nSecHi ./ HeartBeat_Pulses;
 
 figure(3)
 clf
 hold on;
-plot(((1:nHeartBeats)), HB_PulseLength(1:nHeartBeats)-10,'G','LineWidth',1)
-%plot((1:nPings)/1000,     Ping_PulseLength(1:nPings)   ,'B','LineWidth',1)
+plot(((1:nHeartBeats)/60), (HB_PulseLength(1:nHeartBeats)),'G','LineWidth',1)
+%plot((1:nPings)/1000,   (Ping_PulseLength(1:nPings))   ,'B','LineWidth',1)
+ylim([0 100])
+hold off;
+
+figure(4)
+clf
+hold on;
+plot(((1:nHeartBeats)/60), (HB_PulseLength(1:nHeartBeats)),'G','LineWidth',1)
+%plot((1:nPings)/1000,   (Ping_PulseLength(1:nPings))   ,'B','LineWidth',1)
 ylim([0 100])
 hold off;
 

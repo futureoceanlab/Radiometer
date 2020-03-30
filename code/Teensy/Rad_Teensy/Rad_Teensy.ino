@@ -286,15 +286,47 @@
     4. Serial Heartbeat and CLI
         Startup choice: Ns or Download? with timeout
 
- Second, there are multiple resources  with  potential race conditoins:
+ Second, there are multiple resources with potential race conditoins, notably:
  
     1. RingBuffer:  
       Write: Ping_ISR
       Read: SD Storage (main loop)
 
-    2. Payload Buffer
-      Write: Main Loop
-      Read: Ping_ISR
+    2. Heartbeat Data (last second)
+      LastSec_uSecs  = 0,      //
+      LastSec_TimeHi = 0,      //
+      LastSec_Pulses = 0;      // 
+      New_Tilt[2];              // Heartbeat queries Tilt and stores it here
+
+    2. Timing Semaphores
+
+
+int                 CurrentFile    = 0;      // 
+size_t              RUs_Written    = 0;      //
+char                CLI_cmd[CLI_CMD_MAX_CHARS]; //
+
+MAKE_RING_BUFFER(TeensyRing, size_Ring);          // 
+
+
+
+elapsedMillis       Heartbeat_MilliClock;    // for ms since last Heartbeat 
+volatile uint32_t   LastSec_uSecs  = 0,      //
+                    LastSec_TimeHi = 0,      //
+                    LastSec_Pulses = 0;      // 
+volatile uint16_t   New_Tilt[2];              // Heartbeat queries Tilt and stores it here
+
+
+
+
+volatile bool     fHeartbeat    = FALSE;   //
+volatile bool     fPowerDownNow = FALSE;   //
+volatile bool     fStopCount    = TRUE;    //
+volatile bool     fHandlePings  = FALSE;   //  In place of dettachInterrupt, set to false
+
+
+
+
+      
  
  To ensure we never miss a ping, we handle the data reads via a ping-
  triggered interrupt routine. To avoid any race condition over the buffer, 
@@ -854,15 +886,16 @@ int  Open_Files() { // DONE
 
   MetaFile.printf(F("* WHOI/MIT Future Ocean Lab Radiometer Data File \r\n"));
   MetaFile.printf(F("*  \r\n"));
+  MetaFile.printf("* Ship: %s \r\n",ThisDive_ShipName);
+  MetaFile.printf("* Cruise: %s \r\n",ThisDive_CruiseName);
+  MetaFile.printf("* Radiometer: %s \r\n",ThisDive_RadName);
   MetaFile.printf("* Software Version: %f \r\n",FOL_RAD_VV);
-  MetaFile.printf(F("*  \r\n"));
-  MetaFile.printf("* %s, %s, %s \r\n",ThisDive_ShipName,ThisDive_CruiseName,ThisDive_RadName);
   MetaFile.printf(F("*  \r\n"));
   MetaFile.printf("* Dive Message: %s \r\n",ThisDive_Header_Msg);
   MetaFile.printf(F("*  \r\n"));
-  MetaFile.printf("* File Created at %s \r\n",Header_Time);
+  MetaFile.printf("* File Created at: %s \r\n",Header_Time);
   MetaFile.printf(F("*  \r\n"));
-  MetaFile.printf("* Sampling Rate: 1GHz FPGA subsampled at %uHz\r\n",Ns[ThisDive_SampleRateCode]);
+  MetaFile.printf("* Sampling Rate (Hz): %u \r\n",Ns[ThisDive_SampleRateCode]);
   MetaFile.printf(F("*  \r\n"));
   MetaFile.printf(F("* Each Ping generates an 8B binary Data Packet: \r\n"));
   MetaFile.printf(F("*    [2B] 0xFC00 <-- Token indicating Data Packet  \r\n"));
@@ -1524,10 +1557,10 @@ void CLI_Main() {
       
     case 'c': // CMD_DISP_CURRENT_SETTINGS
       SERIALN.println();
-      SERIALN.print(" Expected Dive Duration ");
+      SERIALN.print(" Expected Dive Duration: ");
       SERIALN.print(ThisDive_Duration_Hours);  
       SERIALN.println(" hours.");
-      SERIALN.print(F(" Sampling Rate set to "));
+      SERIALN.print(F(" Sampling Rate set to: "));
       SERIALN.print(Ns[ThisDive_SampleRateCode]);  
       SERIALN.println(F("Hz"));
       break;
