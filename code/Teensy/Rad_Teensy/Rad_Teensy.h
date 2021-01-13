@@ -19,7 +19,7 @@
 
 // ADIS16209
 #include <Arduino.h>
-#include "FOL-ADIS16209.h"
+//#include "FOL-ADIS16209.h"
 //#include "FOL-TMP117.h"
 
 // MTP USB
@@ -143,7 +143,9 @@
 #define TRUE  (1==1)
 #define FALSE (!TRUE)
 
-#define SERIALN Serial1
+#define SERIALN Serial // Jake changed!
+#define SERIALD Serial1
+#define SERIALBAUD 38400 // Jake changed!
 //#define ANNOUNCE_PINGS 
 
 #define FOL_RAD_VV 0.2              //  Radiometer Software Version

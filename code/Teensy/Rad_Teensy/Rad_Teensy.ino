@@ -415,7 +415,10 @@ volatile bool     fHandlePings  = FALSE;   //  In place of dettachInterrupt, set
 */
 #define HEARTBEAT_TO_METAFILE 1
 
-
+/*  Jake's Global Variables
+*/
+//IntervalTimer pingTimer;
+uint16_t nPings = 0;
 
 /*    Global Variables: Per Dive Data      
 */
@@ -462,15 +465,13 @@ volatile bool     fStopCount    = TRUE;    //
 volatile bool     fHandlePings  = FALSE;   //  In place of dettachInterrupt, set to false
 
 
-
-
 /*    Global Sensor Declarations
 */
 
 // ADIS 16209 variables
 // SPI1.PortSelect(...)
 // ADIS16209 tiltsensor(pin_SPI1_CS,&SPI1); // Initialize tilt sensor
-ADIS16209 tiltsensor; // Initialize Tilt sensor
+//ADIS16209 tiltsensor; // Initialize Tilt sensor
 
 //TMP117 tempsensor; // Initalize Temperature sensor
 
@@ -728,6 +729,8 @@ void setup_GPIO() { // DONE
 // INTERRUPTS
   fHandlePings = FALSE;
   attachInterrupt(pin_Ping,   ISR_Ping,   FALLING);
+  //pingTimer.begin(ISR_Ping, 1000); // Create an interrupt ping with 1000 microsecond interval
+
 
 // OUTPUTS
   pinMode(pin_NsSel[0] ,OUTPUT);   
@@ -765,11 +768,12 @@ void setup_GPIO() { // DONE
 void setup_Interfaces() {  // DONE
 // ------------------------------------------------------------ 
 //   Start SERIALN, Query data rate, set Ns, and start Hamamatsu
-
-  SERIALN.setTX(pin_Ser1_TX);
-  SERIALN.setRX(pin_Ser1_RX);
-  SERIALN.begin(115200,SERIAL_8N1);
+// Jake changed!
+  SERIALD.setTX(pin_Ser1_TX);
+  SERIALD.setRX(pin_Ser1_RX);
+  SERIALD.begin(SERIALBAUD,SERIAL_8N1);
 //  SERIALN.begin(115200);
+  SERIALN.begin(9600);
   SERIALN.println("\n\n\nRAD_Counter_Teensy Reporting for Service.");
 
   while (!SERIALN) { };
@@ -822,12 +826,14 @@ void setup_Sensors() {
 //  }
 //
 // Initialize ADIS16209 Tilt Sensor
+/*
   if (tiltsensor.setupSensor() == true) {
     SERIALN.println("ADIS16209 set up successfully");
   }else{
     SERIALN.println("ADIS16209 failed to set up");
   }
   tiltsensor.transceiveSensor(XINCL_OUT);
+  */
 //  delayMicroseconds(40);
 }
 
@@ -1025,11 +1031,11 @@ void Log_Data() {
 
       // Pull New Tilt Data
       // 2B X_Inclination, Request Y Inclination for next read
-      New_Tilt[0] = tiltsensor.transceiveSensor(YINCL_OUT);
+     // New_Tilt[0] = tiltsensor.transceiveSensor(YINCL_OUT);
       // Wait for ADIS registers to stabilize -- Doesn't block interrupts!!
-      delayMicroseconds(40);
+      //delayMicroseconds(40);
       // 2B X_Inclination, Request Y Inclination for next read
-      New_Tilt[1] = tiltsensor.transceiveSensor(XINCL_OUT);
+      //New_Tilt[1] = tiltsensor.transceiveSensor(XINCL_OUT);
       
     } // if(fHeartbeat==HIGH)
 
@@ -1149,6 +1155,7 @@ x             Write local buffer into global read buffer
 
   
   if(fHandlePings==TRUE) {
+    nPings++;
 /*    0. Suspend Interrupts and check time
 */
     noInterrupts();    
@@ -1176,6 +1183,10 @@ x             Write local buffer into global read buffer
     Data_Buffer8[7] = (uint8_t) (GPIOD_PDIR & 0xFF); // ~20ns
     digitalWriteFast(pin_Dtog,HIGH);
 
+// Jake change: replace read with ping count
+    Data_Buffer16[2] = nPings;
+    Data_Buffer16[3] = nPings;
+
 //          Push local buffer into RingBuffer
     Write_Data_to_Ring(Data_Buffer8,DATA_BUFFER_BYTES);
 
@@ -1183,8 +1194,12 @@ x             Write local buffer into global read buffer
 /*    2. Increment per-second counters
  */       
     uSecsSoFar  += Data_Buffer16[1];
-    TimeHiSoFar += Data_Buffer16[2];
-    PulsesSoFar += Data_Buffer16[3];
+    //TimeHiSoFar += Data_Buffer16[2];
+    //PulsesSoFar += Data_Buffer16[3];
+    TimeHiSoFar++;
+    PulsesSoFar++;
+
+    SERIALD.write(&Data_Buffer8[4],2);
 
 
 /*    3. Heartbeat: WRITE 1s MARKER TO SD AND TRIGGER SERIAL HEARTBEAT
