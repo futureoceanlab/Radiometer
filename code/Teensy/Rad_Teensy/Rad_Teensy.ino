@@ -418,7 +418,7 @@ volatile bool     fHandlePings  = FALSE;   //  In place of dettachInterrupt, set
 /*  Jake's Global Variables
 */
 //IntervalTimer pingTimer;
-uint16_t nPings = 0;
+volatile uint16_t nPings = 0;
 
 /*    Global Variables: Per Dive Data      
 */
@@ -542,6 +542,11 @@ int Write_Data_to_Ring(uint8_t *data, uint8_t data_len) {  // DONE1
     return 0;  // return success to indicate successful push.
 }
 
+void Flush_Ring() {
+  TeensyRing.Count = 0;
+  TeensyRing.Head = 0;
+  TeensyRing.Tail = 0;
+}
 
 
 
@@ -927,6 +932,7 @@ int  Open_Files() { // DONE
 }
 
 void Start_Count() { // DONE
+  nPings = 0; // Jake
   SERIALN.println(" ");
 
   // Startup Hamamatsu
@@ -1049,7 +1055,8 @@ void Log_Data() {
           SERIALN.println();
           SERIALN.println(F(" Stopping count... "));
           SERIALN.println();
-          fStopCount = TRUE; 
+          fStopCount = TRUE;
+          Flush_Ring();
           break;
         default:
           SERIALN.println();
@@ -1144,6 +1151,7 @@ x             Write local buffer into global read buffer
 
   static uint8_t    Data_Buffer8[DATA_BUFFER_BYTES];
   static uint16_t*  Data_Buffer16 = (uint16_t*) Data_Buffer8;
+  static uint8_t*   PingBytes8 = &Data_Buffer8[4];
   static uint8_t    Heart_Buffer8[HEART_BUFFER_BYTES];
   static uint16_t*  Heart_Buffer16 = (uint16_t*) Heart_Buffer8; 
   static uint32_t*  Heart_Buffer32 = (uint32_t*) Heart_Buffer8; 
@@ -1153,7 +1161,9 @@ x             Write local buffer into global read buffer
   static uint32_t   CPU_cycles = 0,
                     CPU_cycles_last = 0;
 
-  
+  //static uint16_t   nPings = 0; // Jake!
+
+  static char pingmsg[20];
   if(fHandlePings==TRUE) {
     nPings++;
 /*    0. Suspend Interrupts and check time
@@ -1199,7 +1209,13 @@ x             Write local buffer into global read buffer
     TimeHiSoFar++;
     PulsesSoFar++;
 
-    SERIALD.write(&Data_Buffer8[4],2);
+    //SERIALD.write(&Data_Buffer8[4],2);
+    SERIALD.write(PingBytes8,2);
+    if (nPings % 100 == 0) {
+      //SERIALN.println(sprintf(pingmsg,"%d",Data_Buffer16[2]));
+      sprintf(pingmsg,"%d ",Data_Buffer16[2]);
+      SERIALN.println(pingmsg);
+    }
 
 
 /*    3. Heartbeat: WRITE 1s MARKER TO SD AND TRIGGER SERIAL HEARTBEAT
@@ -1232,6 +1248,7 @@ x             Write local buffer into global read buffer
     PingCount = Ns[ThisDive_SampleRateCode];
   }
 }
+
 
 
 
