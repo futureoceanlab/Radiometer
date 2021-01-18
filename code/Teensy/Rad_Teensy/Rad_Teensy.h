@@ -10,7 +10,7 @@
 
 // Timing 
 #include <TimeLib.h>
-#include "time.h"
+//#include "time.h" // Jake Change
 
 // SdFs
 //#include <FreeStack.h>
@@ -99,13 +99,20 @@
 //#define DTOG_SKIP_16ns_Clicks           60
 #define DTOG_SKIP_16ns_Clicks           4
 
+
 #define DATA_BUFFER_BYTES         8
 #define HEART_BUFFER_BYTES        16
 #define PAYLOAD_DELAY_MILLIS      500
 #define TOKEN_DATA                0xFC
 #define TOKEN_HEART_A             0xFD
 #define TOKEN_HEART_B             0xFE
-
+ 
+#define SERIAL_BUFFER_DATA_BYTES        2
+#define SERIAL_BUFFER_DHEAD_BYTES     12
+#define SERIAL_BUFFER_HEART_BYTES       28
+#define SERIAL_TOKEN_DATA               0x01FF01FF
+#define SERIAL_TOKEN_HEART_START        0x01FE01FE
+#define SERIAL_TOKEN_HEART_STOP         0x01FD01FD
 
 // Global Error Codes
 #define ERR_FILE_WRITE_FAILED     -1

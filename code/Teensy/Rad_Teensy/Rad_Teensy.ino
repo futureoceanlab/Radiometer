@@ -415,10 +415,11 @@ volatile bool     fHandlePings  = FALSE;   //  In place of dettachInterrupt, set
 */
 #define HEARTBEAT_TO_METAFILE 1
 
-/*  Jake's Global Variables
+/*  Jake's Global Variables and definitions
 */
 //IntervalTimer pingTimer;
-volatile uint16_t nPings = 0;
+volatile uint32_t nPings = 0;
+#define SERIAL_DATA_TOKEN_INTERVAL    50
 
 /*    Global Variables: Per Dive Data      
 */
@@ -734,6 +735,7 @@ void setup_GPIO() { // DONE
 // INTERRUPTS
   fHandlePings = FALSE;
   attachInterrupt(pin_Ping,   ISR_Ping,   FALLING);
+  NVIC_SET_PRIORITY(IRQ_PORTE+16, 0); // Jake changed, pin_ping is on port E
   //pingTimer.begin(ISR_Ping, 1000); // Create an interrupt ping with 1000 microsecond interval
 
 
@@ -1151,10 +1153,10 @@ x             Write local buffer into global read buffer
 
   static uint8_t    Data_Buffer8[DATA_BUFFER_BYTES];
   static uint16_t*  Data_Buffer16 = (uint16_t*) Data_Buffer8;
-  static uint8_t*   PingBytes8 = &Data_Buffer8[4];
   static uint8_t    Heart_Buffer8[HEART_BUFFER_BYTES];
   static uint16_t*  Heart_Buffer16 = (uint16_t*) Heart_Buffer8; 
   static uint32_t*  Heart_Buffer32 = (uint32_t*) Heart_Buffer8; 
+
 
   static uint32_t   uSecsSoFar=0,TimeHiSoFar=0,PulsesSoFar=0; // Pulses and Duty over last Sec
   static uint16_t   PingCount = Ns[ThisDive_SampleRateCode];
@@ -1162,6 +1164,21 @@ x             Write local buffer into global read buffer
                     CPU_cycles_last = 0;
 
   //static uint16_t   nPings = 0; // Jake!
+  static uint8_t    Serial_Data_Header8[SERIAL_BUFFER_DHEAD_BYTES];
+  static uint16_t*  Serial_Data_Header16 = (uint16_t*) Serial_Data_Header8;
+  static uint32_t*  Serial_Data_Header32 = (uint32_t*) Serial_Data_Header8;
+  static uint8_t    Serial_Data8[SERIAL_BUFFER_DATA_BYTES];
+  static uint16_t*  Serial_Data16 = (uint16_t*) Serial_Data8;
+  static uint8_t    Serial_Heart8[SERIAL_BUFFER_HEART_BYTES];
+  static uint16_t*  Serial_Heart16 = (uint16_t*) Serial_Heart8;
+  static uint32_t*  Serial_Heart32 = (uint32_t*) Serial_Heart8;
+
+  static uint32_t   cycles_ISR = 0;
+  static uint32_t   cycles_LOG = 0;
+  static uint32_t   CPU_logstart;
+  static float      log_count;
+  static uint32_t   accum_Pulses = 0;
+  static uint32_t   accum_TimeHi = 0;
 
   static char pingmsg[20];
   if(fHandlePings==TRUE) {
@@ -1197,6 +1214,10 @@ x             Write local buffer into global read buffer
     Data_Buffer16[2] = nPings;
     Data_Buffer16[3] = nPings;
 
+// Jake change: check if it's time for a serial data block header
+    if (PingCount % SERIAL_DATA_TOKEN_INTERVAL == 0) {
+      SERIALD.write()
+    }
 //          Push local buffer into RingBuffer
     Write_Data_to_Ring(Data_Buffer8,DATA_BUFFER_BYTES);
 
