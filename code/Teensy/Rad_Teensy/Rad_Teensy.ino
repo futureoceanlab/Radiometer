@@ -1140,30 +1140,30 @@ x         Set Dtog High
 x         Read 16-bit bus into local buffer
 x         Set Dtog Low
 x         Read 16-bit bus into local buffer
-x         Push local buffer into RingBuffer
+x         Push local buffer into RingBuffer for SD writes
 x         If new Payload is available (sensor data, etc) push to RingBuffer
-x         Incriment Per-sec counts
+x         Incriment Per-msec and Per-sec counts
+x         If 50ms of Pings have gone by,
+x             write serial data header
+x         If 1ms of Pings have gone by,
+x             calculate extended counts from per-msec counts and timehi
+x             log-scale extended counts to uint16_t
+x             write serial log-scaled extended counts
 x         Decriment Ping_Count
 x         If 1s of Pings have gone by, 
 x             add UTC to UTC_buffer:
 x             Ping_Count = Ns;
 x             Write local buffer into global read buffer
+x             Write serial heartbeat
 
 ------------------------------------------------------------------------------*/
-
-  static uint8_t    Data_Buffer8[DATA_BUFFER_BYTES];
-  static uint16_t*  Data_Buffer16 = (uint16_t*) Data_Buffer8;
-  static uint8_t    Heart_Buffer8[HEART_BUFFER_BYTES];
-  static uint16_t*  Heart_Buffer16 = (uint16_t*) Heart_Buffer8; 
-  static uint32_t*  Heart_Buffer32 = (uint32_t*) Heart_Buffer8; 
-
-
-  static uint32_t   uSecsSoFar=0,TimeHiSoFar=0,PulsesSoFar=0; // Pulses and Duty over last Sec
-  static uint16_t   PingCount = Ns[ThisDive_SampleRateCode];
-  static uint32_t   CPU_cycles = 0,
-                    CPU_cycles_last = 0;
-
-  //static uint16_t   nPings = 0; // Jake!
+  // Buffers for SD data
+  static uint8_t    SD_Data_Buffer8[SD_DATA_BUFFER_BYTES];
+  static uint16_t*  SD_Data_Buffer16 = (uint16_t*) Data_Buffer8;
+  static uint8_t    SD_Heart_Buffer8[SD_HEART_BUFFER_BYTES];
+  static uint16_t*  SD_Heart_Buffer16 = (uint16_t*) Heart_Buffer8; 
+  static uint32_t*  SD_Heart_Buffer32 = (uint32_t*) Heart_Buffer8; 
+  // Buffers for Serial Data
   static uint8_t    Serial_Data_Header8[SERIAL_BUFFER_DHEAD_BYTES];
   static uint16_t*  Serial_Data_Header16 = (uint16_t*) Serial_Data_Header8;
   static uint32_t*  Serial_Data_Header32 = (uint32_t*) Serial_Data_Header8;
@@ -1172,13 +1172,22 @@ x             Write local buffer into global read buffer
   static uint8_t    Serial_Heart8[SERIAL_BUFFER_HEART_BYTES];
   static uint16_t*  Serial_Heart16 = (uint16_t*) Serial_Heart8;
   static uint32_t*  Serial_Heart32 = (uint32_t*) Serial_Heart8;
+  // Multi-ping accumulators
+  static uint32_t   accum_hb_uSecs=0,accum_hb_TimeHi=0,accum_hb_Pulses=0; // Pulses and Duty over last Sec for heartbeat
+  static uint32_t   accum_ms_TimeHi=0,accum_ms_Pulses=0; //Pulses and Duty over last ms for serial data
+  // Intermediate calculations
+  static float      counts_extended_ping,counts_extended_ms,counts_extended_hb; //Extended count fit
+  static float      logscale_counts_extended_ms; //Logscale of counts_extended_ms
+  static const float      logscale_constant = exp2f(16)/log10f(MAX_COUNTS_PER_MS);
+  // Time and counters
+  static uint16_t   PingCount = Ns[ThisDive_SampleRateCode];
+  static uint16_t   PingsPerMs = PingCount/1000;
+  static uint32_t   CPU_cycles = 0,
+                    CPU_cycles_last = 0;
+  // Profiler variables
+  static uint32_t   profile_cycles_ISR = 0,profile_cycles_LOG10 = 0;
+  static uint32_t   profile_CPU_logstart;  
 
-  static uint32_t   cycles_ISR = 0;
-  static uint32_t   cycles_LOG = 0;
-  static uint32_t   CPU_logstart;
-  static float      log_count;
-  static uint32_t   accum_Pulses = 0;
-  static uint32_t   accum_TimeHi = 0;
 
   static char pingmsg[20];
   if(fHandlePings==TRUE) {
