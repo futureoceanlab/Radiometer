@@ -1177,8 +1177,9 @@ x             Write serial heartbeat
   static uint32_t   accum_hb_uSecs=0,accum_hb_TimeHi=0,accum_hb_Pulses=0; // Pulses and Duty over last Sec for heartbeat
   static uint32_t   accum_ms_TimeHi=0,accum_ms_Pulses=0; //Pulses and Duty over last ms for serial data
   // Intermediate calculations
-  static uint32_t      photonfit_ping,photonfit_ms,photonfit_hb; //Extended count fit
-  static uint16_t      logscale_photonfit_ms; //Logscale of photonfit_ms
+  static uint32_t   photonfit_ping,photonfit_ms,photonfit_hb; //Extended count fit
+  static uint8_t    logscale_photonfit_ms8[2];   
+  static uint16_t*  logscale_photonfit_ms16 = (uint16_t*) logscale_photonfit_ms8; //Logscale of photonfit_ms
   static const float      logscale_constant = exp2f(16)/log10f(MAX_COUNTS_PER_MS);
   // Time and counters
   static uint16_t   PingCount = Ns[ThisDive_SampleRateCode];
@@ -1187,7 +1188,7 @@ x             Write serial heartbeat
   static uint32_t   CPU_cycles = 0,
                     CPU_cycles_last = 0;
   // Profiler variables
-  static uint16_t   profile_cycles_ISR = 0,profile_cycles_LOG10 = 0;
+  static uint32_t   profile_cycles_ISR = 0,profile_cycles_LOG10 = 0;
   static uint32_t   profile_CPU_logstart;  
 
 
@@ -1243,11 +1244,13 @@ x             Write serial heartbeat
 /*    3. If 50 ms gone by, write serial data header (and reset profiler variables)
  */
     if (SerialWordCountdown == 0) {
-      Serial_Data_Header16[0] = SERIAL_TOKEN_DATA;
-      Serial_Data_Header8[3] = SerialPacketCount;
+      //SERIALN.println("Data header");
+      Serial_Data_Header32[0] = SERIAL_TOKEN_DATA;
       //Serial_Data_Header32[1] = now();
-      Serial_Data_Header16[2] = profile_cycles_ISR;
-      Serial_Data_Header16[3] = profile_cycles_LOG10;
+      //Serial_Data_Header32[2] = millis();
+      Serial_Data_Header32[1] = profile_cycles_ISR;
+      Serial_Data_Header32[2] = profile_cycles_LOG10;
+
       profile_cycles_ISR = profile_cycles_LOG10 = 0;
       SerialPacketCount++;
       SerialWordCountdown = SERIAL_DATA_TOKEN_INTERVAL;
@@ -1260,16 +1263,18 @@ x             Write serial heartbeat
     Write Serial
     Iterate countdown and Reset accumulators
  */
-    if (PingCount % PingsPerMs == 1) {
+    if (PingsPerMs ==1 || (PingCount % PingsPerMs == 1)) {
+      //SERIALN.println("Data");
       photonfit_ms = accum_ms_Pulses;
       profile_CPU_logstart = ARM_DWT_CYCCNT;
       switch (photonfit_ms) {
-        case 0: logscale_photonfit_ms = 0x0100; break;
-        case 1: logscale_photonfit_ms = 0x0101; break;
+        case 0: logscale_photonfit_ms16[0] = 0x0100; break;
+        case 1: logscale_photonfit_ms16[1] = 0x0101; break;
         default: 
-        logscale_photonfit_ms = (uint16_t) lroundf(logscale_constant * log10f(photonfit_ms)); break;
+        logscale_photonfit_ms16[0] = (uint16_t) lroundf(logscale_constant * log10f(photonfit_ms)); break;
       }
-      profile_cycles_LOG10 += (uint16_t) (ARM_DWT_CYCCNT - profile_CPU_logstart);
+      profile_cycles_LOG10 += ARM_DWT_CYCCNT - profile_CPU_logstart;
+      SERIALD.write(logscale_photonfit_ms8,2);
       accum_ms_Pulses = accum_ms_TimeHi = 0;
       SerialWordCountdown--;
   }
@@ -1285,6 +1290,7 @@ x             Write serial heartbeat
    [4B] uint32_t UTC Microseconds
  */       
     if(--PingCount == 0) {
+      SERIALN.println("Heartbeat");
       PingCount = Ns[ThisDive_SampleRateCode];
       SD_Heart_Buffer32[1] = now();
       SD_Heart_Buffer32[3] = Heartbeat_MilliClock;
@@ -1304,9 +1310,10 @@ x             Write serial heartbeat
       LastSec_Pulses = accum_hb_Pulses;
       LastSec_TimeHi = accum_hb_TimeHi;
       accum_hb_uSecs = accum_hb_Pulses = accum_hb_TimeHi = 0;
+      SERIALD.write(Serial_Heart_Buffer8, SERIAL_BUFFER_HEART_BYTES);
       fHeartbeat = HIGH;
     } // if(--PingCount == 0)
-    profile_cycles_ISR += (uint16_t) (ARM_DWT_CYCCNT - CPU_cycles);
+    profile_cycles_ISR += ARM_DWT_CYCCNT - CPU_cycles;
     interrupts();
   } // if(fHandlePings==TRUE)
   else {
@@ -1697,6 +1704,7 @@ void CLI_Main() {
 
 
 void setup() { // DONE 
+  delay(100);
   setup_GPIO();
   setup_Interfaces();
   setup_Sensors();

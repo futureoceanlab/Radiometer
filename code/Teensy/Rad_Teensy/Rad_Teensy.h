@@ -111,11 +111,11 @@
  
 #define SERIAL_ 
 #define SERIAL_BUFFER_DATA_BYTES        2
-#define SERIAL_BUFFER_DHEAD_BYTES       8
+#define SERIAL_BUFFER_DHEAD_BYTES       12
 #define SERIAL_BUFFER_HEART_BYTES       24
-#define SERIAL_TOKEN_DATA               0x00FF
-#define SERIAL_TOKEN_HEART_START        0x01FE01FE
-#define SERIAL_TOKEN_HEART_STOP         0x01FD01FD
+#define SERIAL_TOKEN_DATA               0x00FF00FF
+#define SERIAL_TOKEN_HEART_START        0x00FE00FE
+#define SERIAL_TOKEN_HEART_STOP         0x00FD00FD
 
 // Global Error Codes
 #define ERR_FILE_WRITE_FAILED     -1
