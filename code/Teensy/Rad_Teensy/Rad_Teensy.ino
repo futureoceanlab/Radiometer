@@ -419,7 +419,7 @@ volatile bool     fHandlePings  = FALSE;   //  In place of dettachInterrupt, set
 */
 //IntervalTimer pingTimer;
 volatile uint32_t nPings = 0;
-#define SERIAL_DATA_TOKEN_INTERVAL    50
+
 
 /*    Global Variables: Per Dive Data      
 */
@@ -684,6 +684,7 @@ void errorHalt(const char* msg) {
 time_t getTeensy3Time() {
   return Teensy3Clock.get();
 }
+
 
 void dateTime(uint16_t* date, uint16_t* time) {
   // Return date using FS_DATE macro to format fields.
@@ -1159,33 +1160,34 @@ x             Write serial heartbeat
 ------------------------------------------------------------------------------*/
   // Buffers for SD data
   static uint8_t    SD_Data_Buffer8[SD_DATA_BUFFER_BYTES];
-  static uint16_t*  SD_Data_Buffer16 = (uint16_t*) Data_Buffer8;
+  static uint16_t*  SD_Data_Buffer16 = (uint16_t*) SD_Data_Buffer8;
   static uint8_t    SD_Heart_Buffer8[SD_HEART_BUFFER_BYTES];
-  static uint16_t*  SD_Heart_Buffer16 = (uint16_t*) Heart_Buffer8; 
-  static uint32_t*  SD_Heart_Buffer32 = (uint32_t*) Heart_Buffer8; 
+  static uint16_t*  SD_Heart_Buffer16 = (uint16_t*) SD_Heart_Buffer8; 
+  static uint32_t*  SD_Heart_Buffer32 = (uint32_t*) SD_Heart_Buffer8; 
   // Buffers for Serial Data
   static uint8_t    Serial_Data_Header8[SERIAL_BUFFER_DHEAD_BYTES];
   static uint16_t*  Serial_Data_Header16 = (uint16_t*) Serial_Data_Header8;
   static uint32_t*  Serial_Data_Header32 = (uint32_t*) Serial_Data_Header8;
   static uint8_t    Serial_Data8[SERIAL_BUFFER_DATA_BYTES];
   static uint16_t*  Serial_Data16 = (uint16_t*) Serial_Data8;
-  static uint8_t    Serial_Heart8[SERIAL_BUFFER_HEART_BYTES];
-  static uint16_t*  Serial_Heart16 = (uint16_t*) Serial_Heart8;
-  static uint32_t*  Serial_Heart32 = (uint32_t*) Serial_Heart8;
+  static uint8_t    Serial_Heart_Buffer8[SERIAL_BUFFER_HEART_BYTES]; // TODO: Create Union so we can pack in float
+  static uint16_t*  Serial_Heart_Buffer16 = (uint16_t*) Serial_Heart_Buffer8;
+  static uint32_t*  Serial_Heart_Buffer32 = (uint32_t*) Serial_Heart_Buffer8;
   // Multi-ping accumulators
   static uint32_t   accum_hb_uSecs=0,accum_hb_TimeHi=0,accum_hb_Pulses=0; // Pulses and Duty over last Sec for heartbeat
   static uint32_t   accum_ms_TimeHi=0,accum_ms_Pulses=0; //Pulses and Duty over last ms for serial data
   // Intermediate calculations
-  static float      counts_extended_ping,counts_extended_ms,counts_extended_hb; //Extended count fit
-  static float      logscale_counts_extended_ms; //Logscale of counts_extended_ms
+  static uint32_t      photonfit_ping,photonfit_ms,photonfit_hb; //Extended count fit
+  static uint16_t      logscale_photonfit_ms; //Logscale of photonfit_ms
   static const float      logscale_constant = exp2f(16)/log10f(MAX_COUNTS_PER_MS);
   // Time and counters
   static uint16_t   PingCount = Ns[ThisDive_SampleRateCode];
   static uint16_t   PingsPerMs = PingCount/1000;
+  static uint16_t   SerialPacketCount = 0, SerialWordCountdown = 0;
   static uint32_t   CPU_cycles = 0,
                     CPU_cycles_last = 0;
   // Profiler variables
-  static uint32_t   profile_cycles_ISR = 0,profile_cycles_LOG10 = 0;
+  static uint16_t   profile_cycles_ISR = 0,profile_cycles_LOG10 = 0;
   static uint32_t   profile_CPU_logstart;  
 
 
@@ -1204,51 +1206,76 @@ x             Write serial heartbeat
     [2B] uint16_t Pulses
     [2B] uint16_t TimeHi
  */
-    Data_Buffer16[0] = TOKEN_DATA;
-    Data_Buffer16[1] = (uint16_t) round((CPU_cycles - CPU_cycles_last)/cpu_clicks_per_us); // us between pings, up to 65ms
+    SD_Data_Buffer16[0] = SD_TOKEN_DATA;
+    SD_Data_Buffer16[1] = (uint16_t) round((CPU_cycles - CPU_cycles_last)/cpu_clicks_per_us); // us between pings, up to 65ms
     CPU_cycles_last = CPU_cycles;
     
 //          Set Dtog High and read 16-bit bus into local buffer
-    Data_Buffer8[4] = (uint8_t) (GPIOC_PDIR & 0xFF); // ~20ns
-    Data_Buffer8[5] = (uint8_t) (GPIOD_PDIR & 0xFF); // ~20ns
+    SD_Data_Buffer8[4] = (uint8_t) (GPIOC_PDIR & 0xFF); // ~20ns
+    SD_Data_Buffer8[5] = (uint8_t) (GPIOD_PDIR & 0xFF); // ~20ns
 //          Set Dtog Low and read 16-bit bus into local buffer
     digitalWriteFast(pin_Dtog,LOW);
     while(ARM_DWT_CYCCNT <= CPU_cycles_last + DTOG_cycles_delay) {};
     delayMicroseconds(1);
-    Data_Buffer8[6] = (uint8_t) (GPIOC_PDIR & 0xFF); // ~20ns
-    Data_Buffer8[7] = (uint8_t) (GPIOD_PDIR & 0xFF); // ~20ns
+    SD_Data_Buffer8[6] = (uint8_t) (GPIOC_PDIR & 0xFF); // ~20ns
+    SD_Data_Buffer8[7] = (uint8_t) (GPIOD_PDIR & 0xFF); // ~20ns
     digitalWriteFast(pin_Dtog,HIGH);
 
 // Jake change: replace read with ping count
-    Data_Buffer16[2] = nPings;
-    Data_Buffer16[3] = nPings;
+    SD_Data_Buffer16[2] = nPings;
+    SD_Data_Buffer16[3] = nPings;
 
-// Jake change: check if it's time for a serial data block header
-    if (PingCount % SERIAL_DATA_TOKEN_INTERVAL == 0) {
-      SERIALD.write()
-    }
 //          Push local buffer into RingBuffer
-    Write_Data_to_Ring(Data_Buffer8,DATA_BUFFER_BYTES);
+    Write_Data_to_Ring(SD_Data_Buffer8,SD_DATA_BUFFER_BYTES);
 
 
-/*    2. Increment per-second counters
+/*    2. Increment multi-ping accumulators
  */       
-    uSecsSoFar  += Data_Buffer16[1];
-    //TimeHiSoFar += Data_Buffer16[2];
-    //PulsesSoFar += Data_Buffer16[3];
-    TimeHiSoFar++;
-    PulsesSoFar++;
-
-    //SERIALD.write(&Data_Buffer8[4],2);
-    SERIALD.write(PingBytes8,2);
-    if (nPings % 100 == 0) {
-      //SERIALN.println(sprintf(pingmsg,"%d",Data_Buffer16[2]));
-      sprintf(pingmsg,"%d ",Data_Buffer16[2]);
-      SERIALN.println(pingmsg);
-    }
+    accum_hb_uSecs  += SD_Data_Buffer16[1];
+    
+    accum_hb_TimeHi += SD_Data_Buffer16[2];
+    accum_ms_TimeHi += SD_Data_Buffer16[2];
+    
+    accum_hb_Pulses += SD_Data_Buffer16[3];
+    accum_ms_Pulses += SD_Data_Buffer16[3];
 
 
-/*    3. Heartbeat: WRITE 1s MARKER TO SD AND TRIGGER SERIAL HEARTBEAT
+/*    3. If 50 ms gone by, write serial data header (and reset profiler variables)
+ */
+    if (SerialWordCountdown == 0) {
+      Serial_Data_Header16[0] = SERIAL_TOKEN_DATA;
+      Serial_Data_Header8[3] = SerialPacketCount;
+      //Serial_Data_Header32[1] = now();
+      Serial_Data_Header16[2] = profile_cycles_ISR;
+      Serial_Data_Header16[3] = profile_cycles_LOG10;
+      profile_cycles_ISR = profile_cycles_LOG10 = 0;
+      SerialPacketCount++;
+      SerialWordCountdown = SERIAL_DATA_TOKEN_INTERVAL;
+      SERIALD.write(Serial_Data_Header8,SERIAL_BUFFER_DHEAD_BYTES);
+  }
+
+/*    4. If 1 ms gone by, write serial data
+    Fit extended counts from counts and time hi
+    Calculate log scale 
+    Write Serial
+    Iterate countdown and Reset accumulators
+ */
+    if (PingCount % PingsPerMs == 1) {
+      photonfit_ms = accum_ms_Pulses;
+      profile_CPU_logstart = ARM_DWT_CYCCNT;
+      switch (photonfit_ms) {
+        case 0: logscale_photonfit_ms = 0x0100; break;
+        case 1: logscale_photonfit_ms = 0x0101; break;
+        default: 
+        logscale_photonfit_ms = (uint16_t) lroundf(logscale_constant * log10f(photonfit_ms)); break;
+      }
+      profile_cycles_LOG10 += (uint16_t) (ARM_DWT_CYCCNT - profile_CPU_logstart);
+      accum_ms_Pulses = accum_ms_TimeHi = 0;
+      SerialWordCountdown--;
+  }
+      
+
+/*    5. Heartbeat: WRITE 1s MARKER TO SD AND TRIGGER SERIAL HEARTBEAT
  Heartbeat Format [16B]:
    [2B] 0xFDFD 
    [2B] uint16_t X_Tilt
@@ -1259,24 +1286,44 @@ x             Write serial heartbeat
  */       
     if(--PingCount == 0) {
       PingCount = Ns[ThisDive_SampleRateCode];
-      Heart_Buffer32[1] = now();
-      Heart_Buffer32[3] = Heartbeat_MilliClock;
-      Heart_Buffer16[0] = TOKEN_HEART_A;
-      Heart_Buffer16[1] = New_Tilt[0];
-      Heart_Buffer16[4] = TOKEN_HEART_B;
-      Heart_Buffer16[5] = New_Tilt[1];
-      Write_Data_to_Ring(Heart_Buffer8, HEART_BUFFER_BYTES);
-      LastSec_uSecs  = uSecsSoFar;
-      LastSec_Pulses = PulsesSoFar;
-      LastSec_TimeHi = TimeHiSoFar;
-      uSecsSoFar = PulsesSoFar = TimeHiSoFar = 0;
+      SD_Heart_Buffer32[1] = now();
+      SD_Heart_Buffer32[3] = Heartbeat_MilliClock;
+      SD_Heart_Buffer16[0] = SD_TOKEN_HEART_A;
+      SD_Heart_Buffer16[1] = New_Tilt[0];
+      SD_Heart_Buffer16[4] = SD_TOKEN_HEART_B;
+      SD_Heart_Buffer16[5] = New_Tilt[1];
+      Write_Data_to_Ring(SD_Heart_Buffer8, SD_HEART_BUFFER_BYTES);
+
+      Serial_Heart_Buffer32[0] = SERIAL_TOKEN_HEART_START;
+      Serial_Heart_Buffer32[1] = now();
+      Serial_Heart_Buffer32[2] = accum_hb_Pulses;
+      Serial_Heart_Buffer32[3] = accum_hb_TimeHi;
+      Serial_Heart_Buffer32[4] = accum_hb_Pulses; 
+      Serial_Heart_Buffer32[5] = SERIAL_TOKEN_HEART_STOP;
+      LastSec_uSecs  = accum_hb_uSecs;
+      LastSec_Pulses = accum_hb_Pulses;
+      LastSec_TimeHi = accum_hb_TimeHi;
+      accum_hb_uSecs = accum_hb_Pulses = accum_hb_TimeHi = 0;
       fHeartbeat = HIGH;
     } // if(--PingCount == 0)
+    profile_cycles_ISR += (uint16_t) (ARM_DWT_CYCCNT - CPU_cycles);
     interrupts();
   } // if(fHandlePings==TRUE)
   else {
     PingCount = Ns[ThisDive_SampleRateCode];
+    SerialPacketCount = 0;
+    SerialWordCountdown = 0;
   }
+
+/*    Debug and Profiling
+ */
+  /*
+  if (nPings % 100 == 0) {
+    //SERIALN.println(sprintf(pingmsg,"%d",Data_Buffer16[2]));
+    sprintf(pingmsg,"%d ",Data_Buffer16[2]);
+    SERIALN.println(pingmsg);
+  } */
+
 }
 
 

@@ -100,6 +100,7 @@
 #define DTOG_SKIP_16ns_Clicks           4
 
 #define MAX_COUNTS_PER_MS            10000000        
+#define SERIAL_DATA_TOKEN_INTERVAL    50
 
 #define SD_DATA_BUFFER_BYTES         8
 #define SD_HEART_BUFFER_BYTES        16
@@ -110,9 +111,9 @@
  
 #define SERIAL_ 
 #define SERIAL_BUFFER_DATA_BYTES        2
-#define SERIAL_BUFFER_DHEAD_BYTES       12
-#define SERIAL_BUFFER_HEART_BYTES       28
-#define SERIAL_TOKEN_DATA               0x01FF01FF
+#define SERIAL_BUFFER_DHEAD_BYTES       8
+#define SERIAL_BUFFER_HEART_BYTES       24
+#define SERIAL_TOKEN_DATA               0x00FF
 #define SERIAL_TOKEN_HEART_START        0x01FE01FE
 #define SERIAL_TOKEN_HEART_STOP         0x01FD01FD
 
