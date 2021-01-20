@@ -1,8 +1,12 @@
-function [Dive] = UnpackRadDive(Folder_Name,Data_Offset)
+function [Dive] = UnpackRadDive(Folder_Name,Data_Offset,nSamples)
 %UNTITLED3 Summary of this function goes here
 %   Detailed explanation goes here
+switch nargin
+    case 2
+        nSamples = 1000;
+end
 
-Mask_Saturated_Points = 1;
+Mask_Saturated_Points = 0;
 Click_Cutoff_ns       = 999000000;
 
 
@@ -14,7 +18,7 @@ DataFileName = strcat(Folder_Name,'/',DataFiles(1).name);
 
 % MetaData = Unpack_RadDive_MetaFile(MetaFileName);
 UTCshift = 4;
-nSamples = 1000; % 2000, 4000, 8000, 10000, 16000, 25000, 40000  
+%nSamples = 1000; % 2000, 4000, 8000, 10000, 16000, 25000, 40000  
 
 Click_Cutoff = floor(Click_Cutoff_ns/nSamples); % timeHi above this considered saturated
 
@@ -81,13 +85,13 @@ for i = 1:nHeartBeats
 
     TokenD              = sum(squeeze(Ping_RawData(i,1,:)));
     if (TokenD ~= 252 * nSamples) %0xFC
-        fprintf('Found a wrong TokenD at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n', i, 252 * nSamples,TokenD)
+        error('Found a wrong TokenD at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n', i, 252 * nSamples,TokenD)
         break;
     end
     
     TokenA              = fread(hDataFile,1,'uint16=>uint16');
     if (TokenA ~= 253) %0xFD
-        fprintf('Found a wrong TokenA at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n',i,253,TokenA)
+        error('Found a wrong TokenA at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n',i,253,TokenA)
         break;
     end
 
@@ -96,7 +100,7 @@ for i = 1:nHeartBeats
 
     TokenB              = fread(hDataFile,1,'uint16=>uint16');
     if (TokenB ~= 254) %0xFE
-        fprintf('Found a wrong TokenB at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n',i,254,TokenB)
+        error('Found a wrong TokenB at HeartBeat [%u]! \nShould be [%u], but we got [%u].\n',i,254,TokenB)
         break;
     end
 

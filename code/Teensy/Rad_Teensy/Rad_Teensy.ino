@@ -736,7 +736,7 @@ void setup_GPIO() { // DONE
 // INTERRUPTS
   fHandlePings = FALSE;
   attachInterrupt(pin_Ping,   ISR_Ping,   FALLING);
-  NVIC_SET_PRIORITY(IRQ_PORTE+16, 0); // Jake changed, pin_ping is on port E
+  NVIC_SET_PRIORITY(IRQ_PORTE+16, 16); // Jake changed, pin_ping is on port E
   //pingTimer.begin(ISR_Ping, 1000); // Create an interrupt ping with 1000 microsecond interval
 
 
@@ -1183,21 +1183,25 @@ x             Write serial heartbeat
   static const float      logscale_constant = exp2f(16)/log10f(MAX_COUNTS_PER_MS);
   // Time and counters
   static uint16_t   PingCount = Ns[ThisDive_SampleRateCode];
-  static uint16_t   PingsPerMs = PingCount/1000;
+  static uint16_t   PingsPerMs = 1;
   static uint16_t   SerialPacketCount = 0, SerialWordCountdown = 0;
   static uint32_t   CPU_cycles = 0,
                     CPU_cycles_last = 0;
-  // Profiler variables
+  // Profiler and debugvariables
   static uint32_t   profile_cycles_ISR = 0,profile_cycles_LOG10 = 0;
   static uint32_t   profile_CPU_logstart;  
+  static char pingmsg[50];
 
-
-  static char pingmsg[20];
+  
   if(fHandlePings==TRUE) {
     nPings++;
+    if (PingCount == Ns[ThisDive_SampleRateCode]){
+      sprintf(pingmsg, "PingsPerMs: %d",PingsPerMs);
+      SERIALN.println(pingmsg);
+    } 
 /*    0. Suspend Interrupts and check time
 */
-    noInterrupts();    
+    //noInterrupts();    
     CPU_cycles = ARM_DWT_CYCCNT; // Use free-running DWT cpu-click-counter on the K77 M4...
   
 /*    1. PULL DATA FROM CMOD
@@ -1318,8 +1322,11 @@ x             Write serial heartbeat
   } // if(fHandlePings==TRUE)
   else {
     PingCount = Ns[ThisDive_SampleRateCode];
+    PingsPerMs = PingCount/1000;
     SerialPacketCount = 0;
     SerialWordCountdown = 0;
+    accum_hb_uSecs=accum_hb_TimeHi=accum_hb_Pulses=0; 
+    accum_ms_TimeHi=accum_ms_Pulses=0;
   }
 
 /*    Debug and Profiling
