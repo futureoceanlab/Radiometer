@@ -415,12 +415,6 @@ volatile bool     fHandlePings  = FALSE;   //  In place of dettachInterrupt, set
 */
 #define HEARTBEAT_TO_METAFILE 1
 
-/*  Jake's Global Variables and definitions
-*/
-//IntervalTimer pingTimer;
-volatile uint32_t nPings = 0;
-
-
 /*    Global Variables: Per Dive Data      
 */
 char                ThisDive_CruiseName[]    = "WHOI OTZ, March 2020";
@@ -935,7 +929,6 @@ int  Open_Files() { // DONE
 }
 
 void Start_Count() { // DONE
-  nPings = 0; // Jake
   SERIALN.println(" ");
 
   // Startup Hamamatsu
@@ -1177,24 +1170,24 @@ x             Write serial heartbeat
   static uint32_t   accum_hb_uSecs=0,accum_hb_TimeHi=0,accum_hb_Pulses=0; // Pulses and Duty over last Sec for heartbeat
   static uint32_t   accum_ms_TimeHi=0,accum_ms_Pulses=0; //Pulses and Duty over last ms for serial data
   // Intermediate calculations
-  static uint32_t   photonfit_ping,photonfit_ms,photonfit_hb; //Extended count fit
+  static uint32_t   photonfit_ping, photonfit_ms, photonfit_hb; //Extended count fit
   static uint8_t    logscale_photonfit_ms8[2];   
   static uint16_t*  logscale_photonfit_ms16 = (uint16_t*) logscale_photonfit_ms8; //Logscale of photonfit_ms
   static const float      logscale_constant = exp2f(16)/log10f(MAX_COUNTS_PER_MS);
   // Time and counters
   static uint16_t   PingCount = Ns[ThisDive_SampleRateCode];
   static uint16_t   PingsPerMs = 1;
-  static uint16_t   SerialPacketCount = 0, SerialWordCountdown = 0;
+  static uint16_t   SerialWordCountdown = 0;
   static uint32_t   CPU_cycles = 0,
                     CPU_cycles_last = 0;
   // Profiler and debugvariables
   static uint32_t   profile_cycles_ISR = 0,profile_cycles_LOG10 = 0;
   static uint32_t   profile_CPU_logstart;  
+  static uint32_t   fakeCount=0;
   static char pingmsg[50];
 
   
   if(fHandlePings==TRUE) {
-    nPings++;
     if (PingCount == Ns[ThisDive_SampleRateCode]){
       sprintf(pingmsg, "PingsPerMs: %d",PingsPerMs);
       SERIALN.println(pingmsg);
@@ -1227,8 +1220,8 @@ x             Write serial heartbeat
     digitalWriteFast(pin_Dtog,HIGH);
 
 // Jake change: replace read with ping count
-    SD_Data_Buffer16[2] = nPings;
-    SD_Data_Buffer16[3] = nPings;
+    SD_Data_Buffer16[2] = fakeCount;
+    SD_Data_Buffer16[3] = fakeCount;
 
 //          Push local buffer into RingBuffer
     Write_Data_to_Ring(SD_Data_Buffer8,SD_DATA_BUFFER_BYTES);
@@ -1256,7 +1249,6 @@ x             Write serial heartbeat
       Serial_Data_Header32[2] = profile_cycles_LOG10;
 
       profile_cycles_ISR = profile_cycles_LOG10 = 0;
-      SerialPacketCount++;
       SerialWordCountdown = SERIAL_DATA_TOKEN_INTERVAL;
       SERIALD.write(Serial_Data_Header8,SERIAL_BUFFER_DHEAD_BYTES);
   }
@@ -1273,14 +1265,14 @@ x             Write serial heartbeat
       profile_CPU_logstart = ARM_DWT_CYCCNT;
       switch (photonfit_ms) {
         case 0: logscale_photonfit_ms16[0] = 0x0100; break;
-        case 1: logscale_photonfit_ms16[1] = 0x0101; break;
-        default: 
-        logscale_photonfit_ms16[0] = (uint16_t) lroundf(logscale_constant * log10f(photonfit_ms)); break;
+        case 1: logscale_photonfit_ms16[0] = 0x0101; break;
+        default: logscale_photonfit_ms16[0] = (uint16_t) lroundf(logscale_constant * log10f(photonfit_ms)); break;
       }
       profile_cycles_LOG10 += ARM_DWT_CYCCNT - profile_CPU_logstart;
       SERIALD.write(logscale_photonfit_ms8,2);
       accum_ms_Pulses = accum_ms_TimeHi = 0;
       SerialWordCountdown--;
+      fakeCount++;
   }
       
 
@@ -1323,20 +1315,12 @@ x             Write serial heartbeat
   else {
     PingCount = Ns[ThisDive_SampleRateCode];
     PingsPerMs = PingCount/1000;
-    SerialPacketCount = 0;
     SerialWordCountdown = 0;
     accum_hb_uSecs=accum_hb_TimeHi=accum_hb_Pulses=0; 
     accum_ms_TimeHi=accum_ms_Pulses=0;
+    fakeCount = 0;    
   }
 
-/*    Debug and Profiling
- */
-  /*
-  if (nPings % 100 == 0) {
-    //SERIALN.println(sprintf(pingmsg,"%d",Data_Buffer16[2]));
-    sprintf(pingmsg,"%d ",Data_Buffer16[2]);
-    SERIALN.println(pingmsg);
-  } */
 
 }
 
