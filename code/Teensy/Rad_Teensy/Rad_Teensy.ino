@@ -417,8 +417,8 @@ volatile bool     fHandlePings  = FALSE;   //  In place of dettachInterrupt, set
 
 /*    Global Variables: Per Dive Data      
 */
-char                ThisDive_CruiseName[]    = "WHOI OTZ, March 2020";
-char                ThisDive_ShipName[]      = "R/V Neil Armstrong";
+char                ThisDive_CruiseName[]    = "WHOI OTZ, Winter 2021";
+char                ThisDive_ShipName[]      = "Catapult";
 char                ThisDive_RadName[]       = "Radiometer \"Thompson\"";
 char                ThisDive_Header_Msg[128] = "None";
 uint8_t             ThisDive_SampleRateCode  =  0;    // 0...8
@@ -427,9 +427,9 @@ uint8_t             ThisDive_NumFiles        =  N_Files;    //
 
 
 
-/*    Gloabl Variables: Files and Buffers      
+/*    Global Variables: Files and Buffers      
 */
-FsFile              DataFile[N_Files];       // 
+FsFile              DataFile[MAX_FILES];       // 
 FsFile              MetaFile;                // 
 SdFs                sd;                      //
 
@@ -446,7 +446,8 @@ MAKE_RING_BUFFER(TeensyRing, size_Ring);          //
 elapsedMillis       Heartbeat_MilliClock;    // for ms since last Heartbeat 
 volatile uint32_t   LastSec_uSecs  = 0,      //
                     LastSec_TimeHi = 0,      //
-                    LastSec_Pulses = 0;      // 
+                    LastSec_Pulses = 0,      // 
+                    LastSec_Photons = 0;     //
 volatile uint16_t   New_Tilt[2];              // Heartbeat queries Tilt and stores it here
 
 
@@ -1161,8 +1162,8 @@ x             Write serial heartbeat
   static uint8_t    Serial_Data_Header8[SERIAL_BUFFER_DHEAD_BYTES];
   static uint16_t*  Serial_Data_Header16 = (uint16_t*) Serial_Data_Header8;
   static uint32_t*  Serial_Data_Header32 = (uint32_t*) Serial_Data_Header8;
-  static uint8_t    Serial_Data8[SERIAL_BUFFER_DATA_BYTES];
-  static uint16_t*  Serial_Data16 = (uint16_t*) Serial_Data8;
+  static uint8_t    Serial_Data_Buffer8[SERIAL_BUFFER_DATA_BYTES];
+  static uint16_t*  Serial_Data_Buffer16 = (uint16_t*) Serial_Data_Buffer8;
   static uint8_t    Serial_Heart_Buffer8[SERIAL_BUFFER_HEART_BYTES]; // TODO: Create Union so we can pack in float
   static uint16_t*  Serial_Heart_Buffer16 = (uint16_t*) Serial_Heart_Buffer8;
   static uint32_t*  Serial_Heart_Buffer32 = (uint32_t*) Serial_Heart_Buffer8;
@@ -1170,9 +1171,9 @@ x             Write serial heartbeat
   static uint32_t   accum_hb_uSecs=0,accum_hb_TimeHi=0,accum_hb_Pulses=0; // Pulses and Duty over last Sec for heartbeat
   static uint32_t   accum_ms_TimeHi=0,accum_ms_Pulses=0; //Pulses and Duty over last ms for serial data
   // Intermediate calculations
-  static uint32_t   photonfit_ping, photonfit_ms, photonfit_hb; //Extended count fit
-  static uint8_t    logscale_photonfit_ms8[2];   
-  static uint16_t*  logscale_photonfit_ms16 = (uint16_t*) logscale_photonfit_ms8; //Logscale of photonfit_ms
+  static uint32_t   photons_per_ping, photons_per_ms, photons_per_hb; //Extended count fit
+  static uint8_t    linlogscale_photons_per_ms8[2];   
+  static uint16_t*  linlogscale_photons_per_ms16 = (uint16_t*) linlogscale_photons_per_ms8; //Logscale of photons_per_ms
   static const float      logscale_constant = exp2f(16)/log10f(MAX_COUNTS_PER_MS);
   // Time and counters
   static uint16_t   PingCount = Ns[ThisDive_SampleRateCode];
@@ -1181,22 +1182,20 @@ x             Write serial heartbeat
   static uint32_t   CPU_cycles = 0,
                     CPU_cycles_last = 0;
   // Profiler and debugvariables
-  static uint32_t   profile_cycles_ISR = 0,profile_cycles_LOG10 = 0;
-  static uint32_t   profile_CPU_logstart;  
-  static uint32_t   fakeCount=0;
-  static char pingmsg[50];
-
+  #if PROFILER_ENABLE  
+    static uint32_t   profile_cycles_ISR = 0,profile_cycles_LOG10 = 0;
+    static uint32_t   profile_CPU_logstart;
+  #endif
+  #if EMULATOR_ENABLE
+    static uint32_t   fakeCount=0;
+  #endif
   
   if(fHandlePings==TRUE) {
-    if (PingCount == Ns[ThisDive_SampleRateCode]){
-      sprintf(pingmsg, "PingsPerMs: %d",PingsPerMs);
-      SERIALN.println(pingmsg);
-    } 
-/*    0. Suspend Interrupts and check time
+    /*    0. Suspend Interrupts and check time
 */
-    //noInterrupts();    
+    noInterrupts();    
     CPU_cycles = ARM_DWT_CYCCNT; // Use free-running DWT cpu-click-counter on the K77 M4...
-  
+
 /*    1. PULL DATA FROM CMOD
  Data Packet Format [8B]:
     [2B] TOKEN_DATA
@@ -1219,9 +1218,11 @@ x             Write serial heartbeat
     SD_Data_Buffer8[7] = (uint8_t) (GPIOD_PDIR & 0xFF); // ~20ns
     digitalWriteFast(pin_Dtog,HIGH);
 
-// Jake change: replace read with ping count
-    SD_Data_Buffer16[2] = fakeCount;
-    SD_Data_Buffer16[3] = fakeCount;
+// In emulator mode, replace read with ping count
+    #if EMULATOR_ENABLE
+      SD_Data_Buffer16[2] = fakeCount;
+      SD_Data_Buffer16[3] = fakeCount;
+    #endif
 
 //          Push local buffer into RingBuffer
     Write_Data_to_Ring(SD_Data_Buffer8,SD_DATA_BUFFER_BYTES);
@@ -1243,36 +1244,47 @@ x             Write serial heartbeat
     if (SerialWordCountdown == 0) {
       //SERIALN.println("Data header");
       Serial_Data_Header32[0] = SERIAL_TOKEN_DATA;
-      //Serial_Data_Header32[1] = now();
-      //Serial_Data_Header32[2] = millis();
-      Serial_Data_Header32[1] = profile_cycles_ISR;
-      Serial_Data_Header32[2] = profile_cycles_LOG10;
-
-      profile_cycles_ISR = profile_cycles_LOG10 = 0;
+      #if PROFILER_ENABLE
+        Serial_Data_Header32[1] = profile_cycles_ISR;
+        Serial_Data_Header32[2] = profile_cycles_LOG10;
+        profile_cycles_ISR = profile_cycles_LOG10 = 0;
+      #else
+        Serial_Data_Header32[1] = now();
+        Serial_Data_Header32[2] = millis();
+      #endif
       SerialWordCountdown = SERIAL_DATA_TOKEN_INTERVAL;
       SERIALD.write(Serial_Data_Header8,SERIAL_BUFFER_DHEAD_BYTES);
   }
 
 /*    4. If 1 ms gone by, write serial data
-    Fit extended counts from counts and time hi
+    Fit estimated photons from counts and time hi
     Calculate log scale 
     Write Serial
     Iterate countdown and Reset accumulators
  */
     if (PingsPerMs ==1 || (PingCount % PingsPerMs == 1)) {
       //SERIALN.println("Data");
-      photonfit_ms = accum_ms_Pulses;
-      profile_CPU_logstart = ARM_DWT_CYCCNT;
-      switch (photonfit_ms) {
-        case 0: logscale_photonfit_ms16[0] = 0x0100; break;
-        case 1: logscale_photonfit_ms16[0] = 0x0101; break;
-        default: logscale_photonfit_ms16[0] = (uint16_t) lroundf(logscale_constant * log10f(photonfit_ms)); break;
+      photons_per_ms = Photon_Estimator(accum_ms_Pulses, accum_ms_TimeHi); // Dummy estimation function
+      
+      #if PROFILER_ENABLE
+        profile_CPU_logstart = ARM_DWT_CYCCNT; //
+      #endif
+
+      if (photons_per_ms < LOG_CROSSOVER) {
+        linlogscale_photons_per_ms16[0] = (uint16_t) photons_per_ms;
       }
-      profile_cycles_LOG10 += ARM_DWT_CYCCNT - profile_CPU_logstart;
-      SERIALD.write(logscale_photonfit_ms8,2);
+      else {
+        linlogscale_photons_per_ms16[0] = (uint16_t) lroundf(logscale_constant * log10f(photons_per_ms));
+      }
+      #if PROFILER_ENABLE
+        profile_cycles_LOG10 += ARM_DWT_CYCCNT - profile_CPU_logstart; //ifdef onl when profiling
+      #endif
+      SERIALD.write(linlogscale_photons_per_ms8,2);
       accum_ms_Pulses = accum_ms_TimeHi = 0;
       SerialWordCountdown--;
-      fakeCount++;
+      #if EMULATOR_ENABLE
+        fakeCount++;
+      #endif
   }
       
 
@@ -1298,33 +1310,42 @@ x             Write serial heartbeat
 
       Serial_Heart_Buffer32[0] = SERIAL_TOKEN_HEART_START;
       Serial_Heart_Buffer32[1] = now();
-      Serial_Heart_Buffer32[2] = accum_hb_Pulses;
+      Serial_Heart_Buffer32[2] = accum_hb_Pulses; 
       Serial_Heart_Buffer32[3] = accum_hb_TimeHi;
-      Serial_Heart_Buffer32[4] = accum_hb_Pulses; 
+      Serial_Heart_Buffer32[4] = accum_hb_Pulses; //replace with photons
       Serial_Heart_Buffer32[5] = SERIAL_TOKEN_HEART_STOP;
       LastSec_uSecs  = accum_hb_uSecs;
       LastSec_Pulses = accum_hb_Pulses;
       LastSec_TimeHi = accum_hb_TimeHi;
+      LastSec_Photons = Photon_Estimator(accum_hb_Pulses, accum_hb_TimeHi);
       accum_hb_uSecs = accum_hb_Pulses = accum_hb_TimeHi = 0;
       SERIALD.write(Serial_Heart_Buffer8, SERIAL_BUFFER_HEART_BYTES);
       fHeartbeat = HIGH;
     } // if(--PingCount == 0)
-    profile_cycles_ISR += ARM_DWT_CYCCNT - CPU_cycles;
+    profile_cycles_ISR += ARM_DWT_CYCCNT - CPU_cycles; //ifdef profiler
     interrupts();
   } // if(fHandlePings==TRUE)
   else {
     PingCount = Ns[ThisDive_SampleRateCode];
     PingsPerMs = PingCount/1000;
+    N_Files = PingsPerMs * N_File_Multiplier;
     SerialWordCountdown = 0;
     accum_hb_uSecs=accum_hb_TimeHi=accum_hb_Pulses=0; 
     accum_ms_TimeHi=accum_ms_Pulses=0;
-    fakeCount = 0;    
+    #if EMULATOR_ENABLE
+      fakeCount = 0;    
+    #endif
   }
 
 
 }
 
-
+uint32_t Photon_Estimator(uint32_t pulses, uint32_t timeHi) {
+  static uint32_t photon_estimate;
+  //TODO: Write the photon estimator
+  photon_estimate = pulses;
+  return photon_estimate;
+}
 
 
 

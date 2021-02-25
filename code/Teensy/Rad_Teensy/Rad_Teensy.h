@@ -17,7 +17,6 @@
 #include <SdFs.h>
 #define   SD_CONFIG SdioConfig(FIFO_SDIO)
 
-// ADIS16209
 #include <Arduino.h>
 //#include "FOL-ADIS16209.h"
 //#include "FOL-TMP117.h"
@@ -25,8 +24,14 @@
 // MTP USB
 //#include <MTP.h>
 
+/*------------------------------------------------------------------------------ 
 
+    Compiler Options
 
+------------------------------------------------------------------------------*/
+
+#define EMULATOR_ENABLE 1 // Set to 1 line to have teensy run as emulator, generating synthetic data
+#define PROFILER_ENABLE 1 // Set to 1 to have profiler replace UTC 
 
 /*------------------------------------------------------------------------------ 
 
@@ -91,7 +96,9 @@
 //    At 10kHz, we eat 216MB per hour 
 //    Planned dives are all 6 hours long, plus ~ 2 hours on either end
 //    ==> 2.5GB should suffice.
-#define N_Files 2
+int     N_Files = 2;
+#define N_File_Multiplier 2
+#define MAX_FILES 100
 #define FILENAME_ROOT "FOL_WHOI_Radiometer_"
 
 
@@ -101,6 +108,7 @@
 
 #define MAX_COUNTS_PER_MS            10000000        
 #define SERIAL_DATA_TOKEN_INTERVAL    50
+#define LOG_CROSSOVER                32768 // 2^15
 
 #define SD_DATA_BUFFER_BYTES         8
 #define SD_HEART_BUFFER_BYTES        16
@@ -158,7 +166,7 @@
 #define SERIALBAUD 38400 // Jake changed!
 //#define ANNOUNCE_PINGS 
 
-#define FOL_RAD_VV 0.2              //  Radiometer Software Version
+#define FOL_RAD_VV 0.3              //  Radiometer Software Version
 
 
 /*------------------------------------------------------------------------------ 
