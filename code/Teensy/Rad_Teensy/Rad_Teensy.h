@@ -121,9 +121,9 @@ int     N_Files = 2;
 #define SERIAL_BUFFER_DATA_BYTES        2
 #define SERIAL_BUFFER_DHEAD_BYTES       12
 #define SERIAL_BUFFER_HEART_BYTES       24
-#define SERIAL_TOKEN_DATA               0x00FF00FF
-#define SERIAL_TOKEN_HEART_START        0x00FE00FE
-#define SERIAL_TOKEN_HEART_STOP         0x00FD00FD
+#define SERIAL_TOKEN_DATA               0x80008000
+#define SERIAL_TOKEN_HEART_START        0x81118111
+#define SERIAL_TOKEN_HEART_STOP         0x82228222
 
 // Global Error Codes
 #define ERR_FILE_WRITE_FAILED     -1
@@ -161,8 +161,8 @@ int     N_Files = 2;
 #define TRUE  (1==1)
 #define FALSE (!TRUE)
 
-#define SERIALN Serial // Jake changed!
-#define SERIALD Serial1
+#define SERIAL_USB Serial // Jake changed!
+#define SERIAL_RS232 Serial1
 #define SERIALBAUD 38400 // Jake changed!
 //#define ANNOUNCE_PINGS 
 

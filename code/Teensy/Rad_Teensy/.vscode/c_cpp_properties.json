@@ -10,12 +10,9 @@
                 "C:\\Program Files (x86)\\Arduino\\hardware\\tools\\avr\\lib\\gcc\\avr\\7.3.0\\include-fixed"
             ],
             "defines": [
-                "_DEBUG",
-                "UNICODE",
-                "_UNICODE",
-                "__MK66FX1M0__",
-                "ARDUINO = 10805",
-                "${default}"
+                "_DEBUG", "UNICODE", "_UNICODE",
+                "__MK66FX1M0__", "USB_SERIAL", "__cplusplus",
+                "ARDUINO = 10805", "F_CPU=180000000"
             ],
             "compilerPath": "C:\\Strawberry\\c\\bin\\gcc.exe",
             "cStandard": "gnu17",

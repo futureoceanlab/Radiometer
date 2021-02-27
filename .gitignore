@@ -3,3 +3,7 @@ data
 code/FPGA/Rad_Counter_VP/
 archive/JJ_GPIO_Pi/
 code/Matlab/Rad_Counter_Plot_Data.m~
+code/Matlab/monteRadio.m
+code/Teensy/Rad_Teensy/.vscode/launch.json
+code/Teensy/Rad_Teensy/.vscode/settings.json
+code/Teensy/Rad_Teensy/.vscode/spellright.dict
