@@ -4,7 +4,7 @@
 
 /*------------------------------------------------------------------------------ 
 
-    Global Includes
+  Includes and subsidiary defs required for this header
 
 ------------------------------------------------------------------------------*/
 
@@ -31,7 +31,7 @@
 ------------------------------------------------------------------------------*/
 
 #define EMULATOR_ENABLE 1 // Set to 1 line to have teensy run as emulator, generating synthetic data
-#define PROFILER_ENABLE 1 // Set to 1 to have profiler replace UTC 
+#define PROFILER_ENABLE 0 // Set to 1 to have profiler replace UTC 
 
 /*------------------------------------------------------------------------------ 
 
@@ -96,23 +96,28 @@
 //    At 10kHz, we eat 216MB per hour 
 //    Planned dives are all 6 hours long, plus ~ 2 hours on either end
 //    ==> 2.5GB should suffice.
-int     N_Files = 2;
-#define N_File_Multiplier 2
-#define MAX_FILES 100
+//    ==> 40 files (10GB ~ 24 hours) should more tthan suffice.  We'll delete what we don't use.
+//
+#define  N_FILES 8 
 #define FILENAME_ROOT "FOL_WHOI_Radiometer_"
 
 
+/*    Optional Directives
+*/
+#define HEARTBEAT_TO_METAFILE 1
+
+
 // Empirically, 1us = 60 * 16.7ns sufficed;  we should be able to get away with a lot less
-//#define DTOG_SKIP_16ns_Clicks           60
-#define DTOG_SKIP_16ns_Clicks           4
+//#define DTOG_SKIP_16ns_Clicks        60
+#define DTOG_SKIP_16ns_Clicks        4
 
 #define MAX_COUNTS_PER_MS            10000000        
-#define SERIAL_DATA_TOKEN_INTERVAL    50
+#define SERIAL_DATA_TOKEN_INTERVAL   50
 #define LOG_CROSSOVER                32768 // 2^15
 
 #define SD_DATA_BUFFER_BYTES         8
 #define SD_HEART_BUFFER_BYTES        16
-#define PAYLOAD_DELAY_MILLIS      500
+//#define PAYLOAD_DELAY_MILLIS         500
 #define SD_TOKEN_DATA                0xFC
 #define SD_TOKEN_HEART_A             0xFD
 #define SD_TOKEN_HEART_B             0xFE
@@ -120,10 +125,17 @@ int     N_Files = 2;
 #define SERIAL_ 
 #define SERIAL_BUFFER_DATA_BYTES        2
 #define SERIAL_BUFFER_DHEAD_BYTES       12
-#define SERIAL_BUFFER_HEART_BYTES       24
-#define SERIAL_TOKEN_DATA               0x00FF00FF
-#define SERIAL_TOKEN_HEART_START        0x00FE00FE
-#define SERIAL_TOKEN_HEART_STOP         0x00FD00FD
+#define SERIAL_BUFFER_HEART_BYTES       32
+//#define SERIAL_TOKEN_DATA               0x00FF00FF
+//#define SERIAL_TOKEN_HEART_START        0x00FE00FE
+//#define SERIAL_TOKEN_HEART_STOP         0x00FD00FD
+#define SERIAL_TOKEN_DATA               0x80008000
+#define SERIAL_TOKEN_HEART              0x81118111
+#define SERIAL_USB Serial // Allan renamed from SERIALN 2/27
+#define SERIAL_DAT Serial1 // Allan renamed from SERIALD 2/27
+#define SERIAL_DAT_BAUD 38400 
+#define SERIAL_USB_BAUD 9600  // Allan WHY? Why not faster?
+
 
 // Global Error Codes
 #define ERR_FILE_WRITE_FAILED     -1
@@ -161,9 +173,6 @@ int     N_Files = 2;
 #define TRUE  (1==1)
 #define FALSE (!TRUE)
 
-#define SERIALN Serial // Jake changed!
-#define SERIALD Serial1
-#define SERIALBAUD 38400 // Jake changed!
 //#define ANNOUNCE_PINGS 
 
 #define FOL_RAD_VV 0.3              //  Radiometer Software Version
@@ -266,7 +275,8 @@ static const byte pin_NsSel[]   = {24,25,28}; // E26 A05 A16   Binary NS select 
 // static const byte pin_PWM[]     = {35,36,37}; // C08 C09 C10   PWM outtput to stepper motors
 static const byte pin_PWM[]     = {35,36}; // C08 C09   PWM outtput to stepper motors
 static const byte pin_Buzzer    = 37;  // C10  HIGH: Buzzer On                  LOW: Buzzer Off (Prev. 3rd PWM pin)
-static const byte pin_Dtog      = 33;  // E24  HIGH: request Pulse count        LOW: request Cycle count
+//static const byte pin_Dtog      = 33;  // E24  HIGH: request Pulse count        LOW: request Cycle count
+#define pin_Dtog 33  // E24  HIGH: request Pulse count        LOW: request Cycle count
 static const byte pin_Reset     = 17;  // B01  HIGH: reset FPGA counters        LOW: enable counters
 static const byte pin_HamPwr    =  4;  // A13  HIGH: Enable Ham Load Switch     LOW: Disable 
 static const byte pin_CAN0_Lo   = 39;  // A17  HIGH: CAN Low Power Mode ON      LOW: CAN regular mode
@@ -308,7 +318,7 @@ static const size_t        size_Ring = N_BUFS * SIZE_RU;    //
 
 typedef struct {
     uint8_t * const _ring;
-    size_t Head;  
+    size_t Head;
     size_t Tail;
     volatile size_t Count;
     const size_t Size;

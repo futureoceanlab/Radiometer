@@ -405,31 +405,27 @@ volatile bool     fHandlePings  = FALSE;   //  In place of dettachInterrupt, set
 /*         Things Left to do
  * 
  * A. USB Access to SD card  -- BUG!!!
- * B. Motor Controller
  * 
  */
 
 
 
-/*    Optional Directives
-*/
-#define HEARTBEAT_TO_METAFILE 1
 
 /*    Global Variables: Per Dive Data      
 */
-char                ThisDive_CruiseName[]    = "WHOI OTZ, Winter 2021";
+char                ThisDive_CruiseName[]    = "WHOI OTZ Winter 2021";
 char                ThisDive_ShipName[]      = "Catapult";
 char                ThisDive_RadName[]       = "Radiometer \"Thompson\"";
 char                ThisDive_Header_Msg[128] = "None";
 uint8_t             ThisDive_SampleRateCode  =  0;    // 0...8
 uint8_t             ThisDive_Duration_Hours  =  12;   //
-uint8_t             ThisDive_NumFiles        =  N_Files;    //
+uint8_t             ThisDive_NumFiles        =  N_FILES;    //
 
 
 
 /*    Global Variables: Files and Buffers      
 */
-FsFile              DataFile[MAX_FILES];       // 
+FsFile              DataFile[N_FILES];       // 
 FsFile              MetaFile;                // 
 SdFs                sd;                      //
 
@@ -478,7 +474,7 @@ volatile bool     fHandlePings  = FALSE;   //  In place of dettachInterrupt, set
 
 int Write_Ring_to_SD(void) {  // DONE
     if (DataFile[CurrentFile].write(TeensyRing._ring + TeensyRing.Tail, SIZE_RU) != SIZE_RU) {
-        SERIALN.println("file.write failed");
+        if (SERIAL_USB) {SERIAL_USB.println("file.write failed");}
         DataFile[CurrentFile].close();
         return(ERR_FILE_WRITE_FAILED);  // if file write fails, panic with -1
     }
@@ -490,7 +486,7 @@ int Write_Ring_to_SD(void) {  // DONE
     
     if((++RUs_Written) * SIZE_RU >= File_Length) {
         DataFile[CurrentFile].close();
-        if(++CurrentFile==N_Files) return(ERR_OUT_OF_FILES);
+        if(++CurrentFile==N_FILES) return(ERR_OUT_OF_FILES);
         RUs_Written = 0;
     }
     return(0);
@@ -505,7 +501,7 @@ int Write_Data_to_Ring(uint8_t *data, uint8_t data_len) {  // DONE1
      A. Ring Full
      ==> returns -1
      B. Data will wrap to or past the end of the Ring
-     ==> splits data into chunks and writtes across the divide.
+     ==> splits data into chunks and writes across the divide.
      
      Note: assume Write_Data_to_Ring will run inside an interrupt routine
      and can't itself be interrupted
@@ -656,21 +652,19 @@ void BuzzerDash() {
 
 
 
-
-
 /*      Helper Functions
  */
 
 void errorHalt(const char* msg) {
-  SERIALN.print("Error: ");
-  SERIALN.println(msg);
+  SERIAL_USB.print("Error: ");
+  if (SERIAL_USB)  {SERIAL_USB.println(msg);}
   if (sd.sdErrorCode()) {
     if (sd.sdErrorCode() == SD_CARD_ERROR_ACMD41) {
-      SERIALN.println("Try power cycling the SD card.");
+      if (SERIAL_USB) {SERIAL_USB.println("Try power cycling the SD card.");}
     }
-    printSdErrorSymbol(&SERIALN, sd.sdErrorCode());
-    SERIALN.print(", ErrorData: 0X");
-    SERIALN.println(sd.sdErrorData(), HEX);
+    printSdErrorSymbol(&SERIAL_USB, sd.sdErrorCode());
+    SERIAL_USB.print(", ErrorData: 0X");
+    if (SERIAL_USB) {SERIAL_USB.println(sd.sdErrorData(), HEX);}
   }
   BuzzerDoom();  
   while (true) {} 
@@ -706,8 +700,6 @@ void Set_Ns(void) {
   digitalWrite(pin_NsSel[1],( (ThisDive_SampleRateCode >> 1)  & 0x01  ? HIGH : LOW));
   digitalWrite(pin_NsSel[2],( (ThisDive_SampleRateCode >> 2)  & 0x01  ? HIGH : LOW));
 }
-
-
 
 
 
@@ -763,31 +755,31 @@ void setup_GPIO() { // DONE
   digitalWrite(pin_CAN0_Lo  ,HIGH); // Low power mode == Pin --> VCC
   digitalWrite(pin_KillMePls,LOW);  // Don't tell Cmod to kill me!!
   
-  SERIALN.println(" ");
-  SERIALN.println("GPIO Ports initialized...  ");
+  //if (SERIAL_USB) {SERIAL_USB.println(" ");}
+  //if (SERIAL_USB) {SERIAL_USB.println("GPIO Ports initialized...  ");}
 
 } // setup_GPIO()
 
 void setup_Interfaces() {  // DONE
 // ------------------------------------------------------------ 
-//   Start SERIALN, Query data rate, set Ns, and start Hamamatsu
+//   Start SERIAL_USB, Query data rate, set Ns, and start Hamamatsu
 // Jake changed!
-  SERIALD.setTX(pin_Ser1_TX);
-  SERIALD.setRX(pin_Ser1_RX);
-  SERIALD.begin(SERIALBAUD,SERIAL_8N1);
-//  SERIALN.begin(115200);
-  SERIALN.begin(9600);
-  SERIALN.println("\n\n\nRAD_Counter_Teensy Reporting for Service.");
+  SERIAL_DAT.setTX(pin_Ser1_TX);
+  SERIAL_DAT.setRX(pin_Ser1_RX);
+  SERIAL_DAT.begin(SERIAL_DAT_BAUD,SERIAL_8N1);
+//  SERIAL_USB.begin(115200);
+  SERIAL_USB.begin(SERIAL_USB_BAUD);
+  if (SERIAL_USB) {SERIAL_USB.println("\n\n\nRAD_Counter_Teensy Reporting for Service.");}
 
-  while (!SERIALN) { };
+  //while (!SERIAL_USB) { }; //WHAT THE FUCK
 
 // RTC  -- after Serial, before SD
   // set the Time library to use Teensy 3.0's RTC to keep time
   setSyncProvider(getTeensy3Time);
   if (timeStatus()!= timeSet) {
-    SERIALN.println("Unable to sync with the RTC");
+    if (SERIAL_USB) {SERIAL_USB.println("Unable to sync with the RTC");}
   } else {
-    SERIALN.println("RTC has set the system time");
+    if (SERIAL_USB) {SERIAL_USB.println("RTC has set the system time");}
   }
   // Set FS Timestamp callback
   FsDateTime::callback = dateTime;
@@ -808,13 +800,13 @@ void setup_Interfaces() {  // DONE
 // SD via SdFs
 
 #if !ENABLE_DEDICATED_SPI
-  SERIALN.println(F(
+  if (SERIAL_USB) {SERIAL_USB.println(F(
     "\nFor best performance edit SdFsConfig.h\n"
-    "and set ENABLE_DEDICATED_SPI nonzero")); 
+    "and set ENABLE_DEDICATED_SPI nonzero")); }
 #endif  // !ENABLE_DEDICATED_SPI
   // Initialize SD.
   if (!sd.begin(SD_CONFIG)) {
-      SERIALN.println("SD Initialization failed!!");
+      if (SERIAL_USB) {SERIAL_USB.println("SD Initialization failed!!");}
 //      return(-1);
   }
 
@@ -831,9 +823,9 @@ void setup_Sensors() {
 // Initialize ADIS16209 Tilt Sensor
 /*
   if (tiltsensor.setupSensor() == true) {
-    SERIALN.println("ADIS16209 set up successfully");
+    if (SERIAL_USB) {SERIAL_USB.println("ADIS16209 set up successfully");
   }else{
-    SERIALN.println("ADIS16209 failed to set up");
+    if (SERIAL_USB) {SERIAL_USB.println("ADIS16209 failed to set up");
   }
   tiltsensor.transceiveSensor(XINCL_OUT);
   */
@@ -845,8 +837,6 @@ void setup_Timers() {
   ARM_DEMCR |= ARM_DEMCR_TRCENA;
   ARM_DWT_CTRL |= ARM_DWT_CTRL_CYCCNTENA;
 }
-
-
 
 
 
@@ -875,7 +865,7 @@ int  Open_Files() { // DONE
 
 // Open & Preallocate Binary Files
 
-  for(int i=0;i<N_Files;++i) {
+  for(int i=0;i<N_FILES;++i) {
     strcpy(Filename,Filename_Root);
     sprintf(Filename_Num,"_f%.2u.bin",i);
     strcat(Filename,Filename_Num);
@@ -923,30 +913,30 @@ int  Open_Files() { // DONE
   MetaFile.printf(F("*  \r\n"));
   MetaFile.flush();
 
-  SERIALN.println();
-  SERIALN.println(F("Files opened and preallocated...  "));
+  if (SERIAL_USB) {SERIAL_USB.println();}
+  if (SERIAL_USB) {SERIAL_USB.println(F("Files opened and preallocated...  "));}
 
   return 0;
 }
 
 void Start_Count() { // DONE
-  SERIALN.println(" ");
+  if (SERIAL_USB) {SERIAL_USB.println(" ");}
 
   // Startup Hamamatsu
   digitalWrite(pin_HamPwr,HIGH);
-  SERIALN.println();
-  SERIALN.println(F("Hamamatsu Powered Up... "));
+  if (SERIAL_USB) {SERIAL_USB.println();}
+  if (SERIAL_USB) {SERIAL_USB.println(F("Hamamatsu Powered Up... "));}
 
   // Start Counting
   digitalWrite(pin_Reset,LOW);
-  SERIALN.println();
-  SERIALN.println(F("Fabric Counters Running... "));
+  if (SERIAL_USB) {SERIAL_USB.println();}
+  if (SERIAL_USB) {SERIAL_USB.println(F("Fabric Counters Running... "));}
   
   // Start Ping Interrupt
   fHandlePings = TRUE;
-  SERIALN.println();
-  SERIALN.println(F("Photon counting has begun!"));
-  SERIALN.println();
+  if (SERIAL_USB) {SERIAL_USB.println();}
+  if (SERIAL_USB) {SERIAL_USB.println(F("Photon counting has begun!"));}
+  if (SERIAL_USB) {SERIAL_USB.println();}
 
   fStopCount = FALSE;
   
@@ -963,7 +953,6 @@ void Log_Data() {
                         LS_Pulses_Local,
                         LS_TimeHi_Local;
   static double         LS_Secs, LS_PercentHi;
-  static char           cmd;
 
 
   while(fStopCount == FALSE) {
@@ -978,13 +967,13 @@ void Log_Data() {
       if( (eval = Write_Ring_to_SD()) != 0) {
         if(eval == ERR_FILE_WRITE_FAILED) {
           /*  TODO: panic, file write failed*/
-          SERIALN.println("File Write Failed! Shutting Down!");
+          if (SERIAL_USB) {SERIAL_USB.println("File Write Failed! Shutting Down!");}
           fStopCount = TRUE;
           }
         else if(eval == ERR_OUT_OF_FILES) {
             /* TODO:  OUT OF FILES! Hold Ints, ADD MORE FILES, 
                       EAT THE LOST DATA FOR A BIT, restore Ints*/
-          SERIALN.println("File Write Failed! Shutting Down!");
+          if (SERIAL_USB) {SERIAL_USB.println("File Write Failed! Shutting Down!");}
           fStopCount = TRUE;
         }  
       }
@@ -1015,10 +1004,10 @@ void Log_Data() {
       LS_Secs      =  1.0 * LS_uSecs_Local  / 1000000.0;
       LS_PercentHi = 16.0 * LS_TimeHi_Local /   10000000.0;
       
-      SERIALN.println("  ");
-      SERIALN.print(" Secs:   "); SERIALN.println((double)LS_Secs,3); // In Seconds
-      SERIALN.print(" Pulses: "); SERIALN.println((uint32_t)LastSec_Pulses); // In number
-      SERIALN.print(" TimeHi: "); SERIALN.println((double)LS_PercentHi,3); // In %
+      if (SERIAL_USB) {SERIAL_USB.println("  ");
+      SERIAL_USB.print(" Secs:   "); SERIAL_USB.println((double)LS_Secs,3); // In Seconds
+      SERIAL_USB.print(" Pulses: "); SERIAL_USB.println((uint32_t)LastSec_Pulses); // In number
+      SERIAL_USB.print(" TimeHi: "); SERIAL_USB.println((double)LS_PercentHi,3);} // In %
 
 #ifdef HEARTBEAT_TO_METAFILE
       MetaFile.printf("UTC: %u, Secs: %f.3, Pulses: %u, TimeHi: %f.3 \r\n",now(),LS_Secs,LS_Pulses_Local,LS_PercentHi);
@@ -1027,8 +1016,8 @@ void Log_Data() {
       // Check for change of HamRdy signal once per Heartbeat
       HamIsRdy = digitalRead(pin_HamRdy);
       if (HamIsRdy!=HamWasRdy) {
-        if(HamIsRdy == 1) {SERIALN.println();SERIALN.println(F(" Hamamatsu Ready! "));}
-        else              {SERIALN.println();SERIALN.println(F(" Hamamatsu On Standby... "));};
+        if(HamIsRdy == 1) {if (SERIAL_USB) {SERIAL_USB.println(); SERIAL_USB.println(F(" Hamamatsu Ready! "));}}
+        else              {if (SERIAL_USB) {SERIAL_USB.println(); SERIAL_USB.println(F(" Hamamatsu On Standby... "));}};
         HamWasRdy = HamIsRdy;
       } // if (HamIsRdy!=HamWasRdy)
 
@@ -1043,33 +1032,14 @@ void Log_Data() {
     } // if(fHeartbeat==HIGH)
 
 
-    // ------------------------------------------------------------ 
-    //  3. Check for Serial command to Stop Count
-    if (SERIALN.available()) {
-      cmd = SERIALN.read();
-      switch(cmd)  {
-        case 'q': 
-          SERIALN.println();
-          SERIALN.println(F(" Stopping count... "));
-          SERIALN.println();
-          fStopCount = TRUE;
-          Flush_Ring();
-          break;
-        default:
-          SERIALN.println();
-          SERIALN.println(F(" Type 'q' to stop logging and return to command shell"));
-          SERIALN.println();
-          break;
-      }
-    }
 
     // ------------------------------------------------------------ 
-    //  4. Check PwrDown Pin -- NO, ACTUALLY, DONT!
-//    eval = digitalRead(pin_PwrDwn);
-//    if(eval==LOW) {
-//      fStopCount = TRUE;
-//      fPowerDownNow=TRUE;
-//    }
+    //  3. Check PwrDown Pin
+    eval = digitalRead(pin_PwrDwn);
+    if(eval==LOW) {
+      fStopCount    = TRUE;
+      fPowerDownNow = TRUE;
+    }
     
   } // while(fStopCount == FALSE)
 }
@@ -1080,16 +1050,16 @@ void Stop_Count() {
 
   // Start Ping Interrupt
   fHandlePings = FALSE;
-  SERIALN.println();
-  SERIALN.println(F("Photon counting has stopped. "));
+  if (SERIAL_USB) {SERIAL_USB.println(); 
+  SERIAL_USB.println(F("Photon counting has stopped. "));}
   
   digitalWrite(pin_Reset,HIGH);
-  SERIALN.println();
-  SERIALN.println(F("Fabric Counters Zeroed... "));
+  if (SERIAL_USB) {SERIAL_USB.println();
+  SERIAL_USB.println(F("Fabric Counters Zeroed... "));}
 
   digitalWrite(pin_HamPwr,LOW);
-  SERIALN.println();
-  SERIALN.println(F("Hamamatsu Powered Down... "));
+  if (SERIAL_USB) {SERIAL_USB.println();
+  SERIAL_USB.println(F("Hamamatsu Powered Down... "));}
 
 }
 
@@ -1104,7 +1074,7 @@ void Close_Files() {
   MetaFile.truncate();
   MetaFile.close();
     
-  for(int j=0;j<N_Files;++j) {
+  for(int j=0;j<N_FILES;++j) {
     DataFile[j].flush();
     DataFile[j].truncate();
     if(DataFile[j].fileSize()==0) {DataFile[j].remove();};
@@ -1113,11 +1083,10 @@ void Close_Files() {
 
   sd.chdir("/");
 
-  SERIALN.println();
-  SERIALN.println(F(" Files Closed! "));
+  if (SERIAL_USB) {SERIAL_USB.println();
+  SERIAL_USB.println(F(" Files Closed! "));}
   
 }
-
 
 
 
@@ -1168,14 +1137,15 @@ x             Write serial heartbeat
   static uint16_t*  Serial_Heart_Buffer16 = (uint16_t*) Serial_Heart_Buffer8;
   static uint32_t*  Serial_Heart_Buffer32 = (uint32_t*) Serial_Heart_Buffer8;
   // Multi-ping accumulators
-  static uint32_t   accum_hb_uSecs=0,accum_hb_TimeHi=0,accum_hb_Pulses=0; // Pulses and Duty over last Sec for heartbeat
-  static uint32_t   accum_ms_TimeHi=0,accum_ms_Pulses=0; //Pulses and Duty over last ms for serial data
+  static uint32_t   accum_hb_uSecs=0,accum_hb_TimeHi=0,accum_hb_Pulses=0,accum_hb_Photons=0; // Pulses and Duty over last Sec for heartbeat
+  static uint32_t   accum_ms_TimeHi=0,accum_ms_Pulses=0,accum_ms_Photons=0; //Pulses and Duty over last ms for serial data
   // Intermediate calculations
-  static uint32_t   photons_per_ping, photons_per_ms, photons_per_hb; //Extended count fit
   static uint8_t    linlogscale_photons_per_ms8[2];   
   static uint16_t*  linlogscale_photons_per_ms16 = (uint16_t*) linlogscale_photons_per_ms8; //Logscale of photons_per_ms
   static const float      logscale_constant = exp2f(16)/log10f(MAX_COUNTS_PER_MS);
   // Time and counters
+  static uint32_t   ISR_Now;
+  static uint32_t   ISR_Millis;
   static uint16_t   PingCount = Ns[ThisDive_SampleRateCode];
   static uint16_t   PingsPerMs = 1;
   static uint16_t   SerialWordCountdown = 0;
@@ -1195,6 +1165,8 @@ x             Write serial heartbeat
 */
     noInterrupts();    
     CPU_cycles = ARM_DWT_CYCCNT; // Use free-running DWT cpu-click-counter on the K77 M4...
+    ISR_Now = now();
+    ISR_Millis = millis();
 
 /*    1. PULL DATA FROM CMOD
  Data Packet Format [8B]:
@@ -1239,21 +1211,21 @@ x             Write serial heartbeat
     accum_ms_Pulses += SD_Data_Buffer16[3];
 
 
-/*    3. If 50 ms gone by, write serial data header (and reset profiler variables)
- */
+/*    3. If 50 ms gone by, write serial data header (and reset profiler variables) 
+*/
     if (SerialWordCountdown == 0) {
-      //SERIALN.println("Data header");
+      //if (SERIAL_USB) {SERIAL_USB.println("Data header");
       Serial_Data_Header32[0] = SERIAL_TOKEN_DATA;
-      #if PROFILER_ENABLE
+      #if PROFILER_ENABLE 
         Serial_Data_Header32[1] = profile_cycles_ISR;
         Serial_Data_Header32[2] = profile_cycles_LOG10;
         profile_cycles_ISR = profile_cycles_LOG10 = 0;
       #else
-        Serial_Data_Header32[1] = now();
-        Serial_Data_Header32[2] = millis();
+        Serial_Data_Header32[1] = ISR_Now;
+        Serial_Data_Header32[2] = ISR_Millis;
       #endif
       SerialWordCountdown = SERIAL_DATA_TOKEN_INTERVAL;
-      SERIALD.write(Serial_Data_Header8,SERIAL_BUFFER_DHEAD_BYTES);
+      SERIAL_DAT.write(Serial_Data_Header8,SERIAL_BUFFER_DHEAD_BYTES);
   }
 
 /*    4. If 1 ms gone by, write serial data
@@ -1263,23 +1235,25 @@ x             Write serial heartbeat
     Iterate countdown and Reset accumulators
  */
     if (PingsPerMs ==1 || (PingCount % PingsPerMs == 1)) {
-      //SERIALN.println("Data");
-      photons_per_ms = Photon_Estimator(accum_ms_Pulses, accum_ms_TimeHi); // Dummy estimation function
+      //if (SERIAL_USB) {SERIAL_USB.println("Data");
+      accum_ms_Photons = Photon_Estimator(accum_ms_Pulses, accum_ms_TimeHi); // Dummy estimation function
+
+      accum_hb_Photons += accum_ms_Photons;
       
       #if PROFILER_ENABLE
         profile_CPU_logstart = ARM_DWT_CYCCNT; //
       #endif
 
-      if (photons_per_ms < LOG_CROSSOVER) {
-        linlogscale_photons_per_ms16[0] = (uint16_t) photons_per_ms;
+      if (accum_ms_Photons < LOG_CROSSOVER) {
+        linlogscale_photons_per_ms16[0] = (uint16_t) accum_ms_Photons;
       }
       else {
-        linlogscale_photons_per_ms16[0] = (uint16_t) lroundf(logscale_constant * log10f(photons_per_ms));
+        linlogscale_photons_per_ms16[0] = (uint16_t) lroundf(logscale_constant * log10f(accum_ms_Photons));
       }
       #if PROFILER_ENABLE
         profile_cycles_LOG10 += ARM_DWT_CYCCNT - profile_CPU_logstart; //ifdef onl when profiling
       #endif
-      SERIALD.write(linlogscale_photons_per_ms8,2);
+      SERIAL_DAT.write(linlogscale_photons_per_ms8,2);
       accum_ms_Pulses = accum_ms_TimeHi = 0;
       SerialWordCountdown--;
       #if EMULATOR_ENABLE
@@ -1289,46 +1263,71 @@ x             Write serial heartbeat
       
 
 /*    5. Heartbeat: WRITE 1s MARKER TO SD AND TRIGGER SERIAL HEARTBEAT
- Heartbeat Format [16B]:
+
+   
+ */       
+    if(--PingCount == 0) {
+      if (SERIAL_USB) {SERIAL_USB.println("Heartbeat");}
+      
+      PingCount = Ns[ThisDive_SampleRateCode];
+
+      /* SD Heartbeat Format [16B]:
    [2B] 0xFDFD 
    [2B] uint16_t X_Tilt
    [4B] uint32_t UTC Seconds
    [2B] 0xFEFE
    [2B] uint16_t Y_Tilt
    [4B] uint32_t UTC Microseconds
- */       
-    if(--PingCount == 0) {
-      SERIALN.println("Heartbeat");
-      PingCount = Ns[ThisDive_SampleRateCode];
-      SD_Heart_Buffer32[1] = now();
-      SD_Heart_Buffer32[3] = Heartbeat_MilliClock;
+       */
       SD_Heart_Buffer16[0] = SD_TOKEN_HEART_A;
       SD_Heart_Buffer16[1] = New_Tilt[0];
+      SD_Heart_Buffer32[1] = ISR_Now;
       SD_Heart_Buffer16[4] = SD_TOKEN_HEART_B;
       SD_Heart_Buffer16[5] = New_Tilt[1];
+      SD_Heart_Buffer32[3] = ISR_Millis;
       Write_Data_to_Ring(SD_Heart_Buffer8, SD_HEART_BUFFER_BYTES);
 
-      Serial_Heart_Buffer32[0] = SERIAL_TOKEN_HEART_START;
-      Serial_Heart_Buffer32[1] = now();
-      Serial_Heart_Buffer32[2] = accum_hb_Pulses; 
-      Serial_Heart_Buffer32[3] = accum_hb_TimeHi;
-      Serial_Heart_Buffer32[4] = accum_hb_Pulses; //replace with photons
-      Serial_Heart_Buffer32[5] = SERIAL_TOKEN_HEART_STOP;
+      /*  Serial Heartbeat Format [32B]:
+0   [4B] 0x81118111 
+1   [4B] uint32_t UTC Seconds
+2   [4B] uint32_t UTC Millisedconds
+3   [4B] uint32_t Pulses last sec
+4   [4B] uint32_t TimeHi last sec
+5   [4B] uint32_t Photons last sec
+6   [2B] uint16_t X_Tilt
+6.5 [2B] uint16_t Y_Tilt
+7   [4B] 0x81118111
+       */
+      Serial_Heart_Buffer32[0]  = SERIAL_TOKEN_HEART;
+      Serial_Heart_Buffer32[1]  = ISR_Now;
+      Serial_Heart_Buffer32[2]  = ISR_Millis;
+      Serial_Heart_Buffer32[3]  = accum_hb_Pulses; 
+      Serial_Heart_Buffer32[4]  = accum_hb_TimeHi;
+      Serial_Heart_Buffer32[5]  = accum_hb_Photons;
+      Serial_Heart_Buffer16[12] = New_Tilt[0];
+      Serial_Heart_Buffer16[13] = New_Tilt[1];
+      Serial_Heart_Buffer32[7]  = SERIAL_TOKEN_HEART;
+      
       LastSec_uSecs  = accum_hb_uSecs;
       LastSec_Pulses = accum_hb_Pulses;
       LastSec_TimeHi = accum_hb_TimeHi;
       LastSec_Photons = Photon_Estimator(accum_hb_Pulses, accum_hb_TimeHi);
-      accum_hb_uSecs = accum_hb_Pulses = accum_hb_TimeHi = 0;
-      SERIALD.write(Serial_Heart_Buffer8, SERIAL_BUFFER_HEART_BYTES);
+      
+      accum_hb_uSecs = accum_hb_Pulses = accum_hb_TimeHi = accum_hb_Photons = 0;
+      
+      SERIAL_DAT.write(Serial_Heart_Buffer8, SERIAL_BUFFER_HEART_BYTES);
+      
       fHeartbeat = HIGH;
     } // if(--PingCount == 0)
+    
+#if PROFILER_ENABLE
     profile_cycles_ISR += ARM_DWT_CYCCNT - CPU_cycles; //ifdef profiler
+#endif
     interrupts();
   } // if(fHandlePings==TRUE)
   else {
     PingCount = Ns[ThisDive_SampleRateCode];
     PingsPerMs = PingCount/1000;
-    N_Files = PingsPerMs * N_File_Multiplier;
     SerialWordCountdown = 0;
     accum_hb_uSecs=accum_hb_TimeHi=accum_hb_Pulses=0; 
     accum_ms_TimeHi=accum_ms_Pulses=0;
@@ -1352,364 +1351,25 @@ uint32_t Photon_Estimator(uint32_t pulses, uint32_t timeHi) {
 /*    Shutdown Routine
 */
 void Shutdown() {  // Done-ish
-  SERIALN.println();
-  SERIALN.println(F(
+  if (SERIAL_USB) {SERIAL_USB.println();
+  SERIAL_USB.println(F(
     "Are you sure you want to sut down the Teensy?\r\n"
     "Turning back on requires a physical power cycle.\r\n"
-    "Type 'Y' to continue...\r\n"));
+    "Type 'Y' to continue...\r\n"));}
 
-  while (!SERIALN.available()) {yield();}
-  if (SERIALN.read() != 'Y') {
-    SERIALN.println(F("Exiting, 'Y' not typed."));
+  while (!SERIAL_USB.available()) {yield();}
+  if (SERIAL_USB.read() != 'Y') {
+    if (SERIAL_USB) {SERIAL_USB.println(F("Exiting, 'Y' not typed."));}
     return;
   }
   
-  SERIALN.println("OK, Shutting Teensy down!!");
+  if (SERIAL_USB) {SERIAL_USB.println("OK, Shutting Teensy down!!");}
   digitalWrite(pin_HamPwr,LOW);
   delayMicroseconds(50);
   digitalWrite(pin_KillMePls,HIGH);  // Tell Cmod to kill me!!
   BuzzerShutdown();
   while(1) {};
 } // setup_Shutdown()
-
-
-
-
-
-
-/*    Filesystem Functions
-*/
-
-int FS_Format_SD(void) {
-//  SERIALN.println();
-//  SERIALN.println(F(
-//    "Your SD will be formated exFAT.\r\n"
-//    "All data on the SD will be lost.\r\n"
-//    "Type 'Y' to continue.\r\n"));
-//
-//  while (!SERIALN.available()) {yield();}
-//  if (SERIALN.read() != 'Y') {
-//    SERIALN.println(F("Exiting, 'Y' not typed."));
-//    return(1);
-//  }
-//  if (!sd.cardBegin(SD_CONFIG)) {return(0);} //{error("cardBegin failed");}    
-//  if (!sd.format(&SERIALN)) {return(0);}// {error("format failed");}
-//  if (!sd.volumeBegin()) {return(0);}//{error("volumeBegin failed");}
-//
-//  SERIALN.print(F("Bytes per cluster: "));
-//  SERIALN.println(sd.bytesPerCluster());
-//  SERIALN.println(F("SD Formatted"));
-  return(1);
-}
-
-
-
-
-
-
-/*      CLI functions
-
-#define CMD_SET_DIVE_DURATION     0
-#define CMD_SET_DIVE_SAMPLE_RATE  1
-#define CMD_SET_DIVE_TXT_MSG      2
-#define CMD_HAMAMATSU_ON          3
-#define CMD_HAMAMATSU_OFF         4
-#define CMD_START_LOGGING         5
-#define CMD_SHUTDOWN              7
-#define CMD_HELP_CURRENT_SETTINGS 8
-#define CMD_HELP_MENU             9
-
-#define CMD_FILE_LS               10
-#define CMD_FILE_CD               11
-#define CMD_FILE_RM               12
-#define CMD_FILE_FORMAT           13
-#define CMD_BEGIN_MTP_USB_MODE    14
-#define CMD_BACK_TO_MENU          15
- */
-
-
- void CLI_GetCommand_Wait(char* receivedChars,byte maxChars)  { 
-  static const char endMarker = '\n';
-  static byte ndx;
-  static char rc;
-  static boolean newData;
-
-  ndx = 0;
-  newData = FALSE;
- 
-  while (SERIALN.available() > 0 && newData == FALSE) {
- 
-    rc = SERIALN.read();
-
-    if (rc != endMarker) {
-      receivedChars[ndx] = rc;
-      ndx++;
-      if (ndx >= maxChars) {
-        ndx = maxChars - 1;
-      }
-    }
-    else {
-      receivedChars[ndx] = '\0'; // terminate the string
-      ndx = 0;
-      newData = TRUE;
-    }
-  }
-}
-
-/* void CLI_GetCommand_Timeout(char*,byte,byte)  { 
-  static const char endMarker = '\n';
-  static byte ndx;
-  static char rc;
-  static boolean newData;
-
-  ndx = 0;
-  newData = FALSE;
- 
-  while (SERIALN.available() > 0 && newData == FALSE) {
- 
-    rc = SERIALN.read();
-
-    if (rc != endMarker) {
-      receivedChars[ndx] = rc;
-      ndx++;
-      if (ndx >= maxChars) {
-        ndx = maxChars - 1;
-      }
-    }
-    else {
-      receivedChars[ndx] = '\0'; // terminate the string
-      ndx = 0;
-      newData = TRUE;
-    }
-  }
-}*/
-
-void CLI_ClearSerial() {
-    do { delay(20); } while (SERIALN.available() && SERIALN.read());
-}
-
-void CLI_CmdLine() {
-  SERIALN.println(" "); 
-  SERIALN.print(ThisDive_RadName); 
-  SERIALN.print(": ");
- }
-
-void CLI_Get_Ns()  {
-  uint32_t micros_elapsed;
-  char ns;
-
-  CLI_ClearSerial();
-
-  SERIALN.println(F(" "));
-  SERIALN.println(F("Select Data Sampling Rate:"));
-  SERIALN.println(F("Type '0' for  1 kHz"));
-  SERIALN.println(F("     '1' for  2 kHz"));
-  SERIALN.println(F("     '2' for  4 kHz"));
-  SERIALN.println(F("     '3' for  8 kHz"));
-  SERIALN.println(F("     '4' for 10 kHz"));
-  SERIALN.println(F("     '5' for 16 kHz"));
-  SERIALN.println(F("     '6' for 25 kHz")); // 250MHz; 24 @ 240
-  SERIALN.println(F("     '7' for 40 kHz")); // 250MHz; 32 @ 240
-
-  micros_elapsed =  micros();
-  while (!SERIALN.available() && (micros()-micros_elapsed < 30*ONE_MILLION)) {  }
-  if(!SERIALN.available()) { // No reply, use default rate
-    SERIALN.println(F("Timeout, defaulting to 1 kHz..."));
-    BuzzerDot();
-    BuzzerDot();
-    BuzzerDot();
-    ns = '0';
-   } 
-  else {ns = SERIALN.read();} // Use specified rate
-  
-  switch(ns)  {
-    case '1': ThisDive_SampleRateCode = 1; break;
-    case '2': ThisDive_SampleRateCode = 2; break;
-    case '3': ThisDive_SampleRateCode = 3; break;
-    case '4': ThisDive_SampleRateCode = 4; break;
-    case '5': ThisDive_SampleRateCode = 5; break;
-    case '6': ThisDive_SampleRateCode = 6; break;
-    case '7': ThisDive_SampleRateCode = 7; break;
-    default:  ThisDive_SampleRateCode = 0; break;
-  } // Switch(ns)
-
-  SERIALN.println(F(" "));
-  SERIALN.print(F("Proceeding with Sampling Rate "));
-  SERIALN.print(Ns[ThisDive_SampleRateCode]);  
-  SERIALN.println(F("Hz"));
-
-  Set_Ns();
-  
-  BuzzerDot();
-  BuzzerDash();
-}
-
-void CLI_Get_Dive_Duration() {
-  uint32_t micros_elapsed;
-  uint8_t input;
-
-  do { delay(20); } while (SERIALN.available() && SERIALN.read());
-
-  SERIALN.println(" ");
-  SERIALN.println("How many Hours will the next dive last, in multiples of 4? ");
-
-  micros_elapsed =  micros();
-  while (!SERIALN.available() && (micros()-micros_elapsed < 30*ONE_MILLION)) {  };
-  
-  if(!SERIALN.available()) { // No reply, use default rate
-    SERIALN.println("Timeout, defaulting to 12 Hours ...");
-    BuzzerDot();
-    BuzzerDot();
-    BuzzerDot();
-    ThisDive_Duration_Hours = 12;
-   } 
-  else {
-    input = 4* (uint8_t)SERIALN.read();
-    if((input >0) && (input < 36)) {ThisDive_Duration_Hours = input;}
-    else {ThisDive_Duration_Hours = 12;}
-   }
-  
-  SERIALN.println(" ");
-  SERIALN.print("Proceeding with Dive Duration ");
-  SERIALN.print(ThisDive_Duration_Hours);  
-  SERIALN.println(" hours.");
-
-  BuzzerDot();
-  BuzzerDash();
-}
-
-void CLI_Filesystem()  {
-  static char cmd_line[128];
-  static char *cmd,*arg;
-  
-  while(TRUE) {
-    CLI_ClearSerial();
-    CLI_CmdLine();
-    CLI_GetCommand_Wait(cmd_line,128);
-    
-    cmd = strtok(cmd_line, " ");
-    
-    if(strcmp(cmd,"ls")==0) { // TEST?
-      sd.ls(LS_R | LS_DATE | LS_SIZE);
-    }
-    
-    else if(strcmp(cmd,"cd")==0) { // TEST?
-      arg = strtok(NULL, " ");
-      if (!sd.chdir(arg)) {SERIALN.println(F("cd failed"));}
-    }
-    
-    else if(strcmp(cmd,"cat")==0) {
-      SERIALN.println(F("NA"));
-    }
-    
-    else if(strcmp(cmd,"rm")==0) {
-      SERIALN.println(F("NA"));      
-    }
-    
-    else if(strcmp(cmd,"pwd")==0) {
-      SERIALN.println(F("NA"));
-    }
-    
-    else if(strcmp(cmd,"format")==0) { // TEST?
-       if (!FS_Format_SD()) {SERIALN.println(F("format failed"));};
-    }
-    
-    else if(strcmp(cmd,"home")==0) { // TEST?
-      return;
-    }
-    
-    else if(strcmp(cmd,"help")==0) { // TEST?
-    SERIALN.println(F(" "));
-    SERIALN.println(F("The following  Filesystem commands are available:"));
-    SERIALN.println(F("cd <path>"));
-    SERIALN.println(F("pwd"));
-    SERIALN.println(F("hexdump <filename>"));
-    SERIALN.println(F("rm <filename>"));
-    SERIALN.println(F("format"));
-    SERIALN.println(F("help"));
-    SERIALN.println(F("home"));
-    }else {
-    SERIALN.println(F(" "));
-    SERIALN.println(F("Type \"help\" for a list of file commands."));
-    }
-  }
-}
-
-void CLI_Main() {
-  static char cmd='0';
-  
-  CLI_ClearSerial();
-  CLI_CmdLine();
-  
-  while (!SERIALN.available()) {};
-  
-  cmd = SERIALN.read();
-  
-  switch(cmd) {
-    case 'd': // CMD_SET_DIVE_DURATION
-      CLI_Get_Dive_Duration();
-      break;
-      
-    case 'r': // CMD_SET_DIVE_SAMPLE_RATE
-      CLI_Get_Ns();
-      break;
-      
-    case 'h': // CMD_HAMAMATSU_ON
-      digitalWrite(pin_HamPwr,HIGH);
-      SERIALN.println(F("Hamamatsu Powered Up... "));
-      break;
-      
-    case 'b': // CMD_HAMAMATSU_OFF
-      digitalWrite(pin_HamPwr,LOW);
-      SERIALN.println(F("Hamamatsu Powered Down... "));
-      break;
-      
-    case 'l': // CMD_START_LOGGING
-      Open_Files();
-      Start_Count();
-      Log_Data();
-      Stop_Count();
-      Close_Files();     
-      break;
-
-    case 'f': // CMD_FileSystem
-      CLI_Filesystem();
-      break;
-      
-    case 'p': // CMD_SHUTDOWN
-      BuzzerDash();
-      BuzzerDash();
-      BuzzerDash();
-      Shutdown();
-      break;
-      
-    case 'c': // CMD_DISP_CURRENT_SETTINGS
-      SERIALN.println();
-      SERIALN.print(" Expected Dive Duration: ");
-      SERIALN.print(ThisDive_Duration_Hours);  
-      SERIALN.println(" hours.");
-      SERIALN.print(F(" Sampling Rate set to: "));
-      SERIALN.print(Ns[ThisDive_SampleRateCode]);  
-      SERIALN.println(F("Hz"));
-      break;
-      
-//    case CMD_MTP_USB: // Check for PIN_SHUTDOWN and SERIAL_SHUTDOWN
-//      break;
-
-    default: // CMD_HELP_MENU
-      SERIALN.println(F("Type r to Set Sample Rate"));
-      SERIALN.println(F("     d to Set Dive Duration"));
-      SERIALN.println(F("     l to Start Logging"));
-      SERIALN.println(F("     h to Turn Hamamatsu On"));
-      SERIALN.println(F("     b to Turn Hamamatsu Off"));
-      SERIALN.println(F("     f to explore the Filesystem"));
-      SERIALN.println(F("     c to see Current Settings"));
-      SERIALN.println(F("     p to Power Down"));
-      break;
-    
-  }//switch(cmd)
-
-}// CLI_Main()
 
 
 
@@ -1724,6 +1384,12 @@ void setup() { // DONE
   BuzzerHamOpen();
 } // Setup()
 
+
 void loop() { // DONE
-  CLI_Main(); 
+  Open_Files();
+  Start_Count();
+  Log_Data();
+  Stop_Count();
+  Close_Files();     
+  while(TRUE) {};
 }
