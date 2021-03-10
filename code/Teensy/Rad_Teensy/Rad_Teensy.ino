@@ -401,6 +401,7 @@ volatile bool     fHandlePings  = FALSE;   //  In place of dettachInterrupt, set
   
 ------------------------------------------------------------------------------*/
 #include "Rad_Teensy.h"
+#include "PhotonEstimation.h"
 
 /*         Things Left to do
  * 
@@ -1236,7 +1237,7 @@ x             Write serial heartbeat
  */
     if (PingsPerMs ==1 || (PingCount % PingsPerMs == 1)) {
       //if (SERIAL_USB) {SERIAL_USB.println("Data");
-      accum_ms_Photons = Photon_Estimator(accum_ms_Pulses, accum_ms_TimeHi); // Dummy estimation function
+      accum_ms_Photons = Photon_Estimator(accum_ms_Pulses, accum_ms_TimeHi, 3);
 
       accum_hb_Photons += accum_ms_Photons;
       
@@ -1311,7 +1312,7 @@ x             Write serial heartbeat
       LastSec_uSecs  = accum_hb_uSecs;
       LastSec_Pulses = accum_hb_Pulses;
       LastSec_TimeHi = accum_hb_TimeHi;
-      LastSec_Photons = Photon_Estimator(accum_hb_Pulses, accum_hb_TimeHi);
+      LastSec_Photons = Photon_Estimator(accum_hb_Pulses, accum_hb_TimeHi, 0);
       
       accum_hb_uSecs = accum_hb_Pulses = accum_hb_TimeHi = accum_hb_Photons = 0;
       
@@ -1339,14 +1340,6 @@ x             Write serial heartbeat
 
 }
 
-uint32_t Photon_Estimator(uint32_t pulses, uint32_t timeHi) {
-  static uint32_t photon_estimate;
-  //TODO: Write the photon estimator
-  photon_estimate = pulses;
-  return photon_estimate;
-}
-
-
 
 /*    Shutdown Routine
 */
@@ -1370,10 +1363,6 @@ void Shutdown() {  // Done-ish
   BuzzerShutdown();
   while(1) {};
 } // setup_Shutdown()
-
-
-
-
 
 void setup() { // DONE 
   delay(100);
