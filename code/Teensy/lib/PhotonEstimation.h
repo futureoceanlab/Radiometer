@@ -158,17 +158,17 @@ float Photon_Estimator(uint32_t pulses, uint32_t timeHi, int logfreq) {
     decade = logfloor(pulses);
     mantissa = pulses/powf(10.F, (float) decade);
     LUTblock = decade + logfreq - LUTOFFSET_LOW;
-    photon_estimate = LinInterpFixed(mantissa, invLUT_lowPulses[LUTblock]);
+    photon_estimate = LinInterpFixed(mantissa, invLUT_lowPulses[LUTblock])/powf(10.F, logfreq);
   }
   else if (pctTimeHi < ESTCUTOFF_HIGH) {
     mantissa = 1.F + pctTimeHi/10.F;
-    photon_estimate = LinInterpFixed(mantissa, invLUT_midTimeHi);
+    photon_estimate = LinInterpFixed(mantissa, invLUT_midTimeHi)/powf(10.F, logfreq);
   }
   else {
     decade = logfloor(pulses);
     mantissa = pulses/powf(10.F, (float) decade);
     LUTblock = decade + logfreq - LUTOFFSET_HIGH;
-    photon_estimate = LinInterpFixed(mantissa, invLUT_hiPulses[LUTblock]);
+    photon_estimate = LinInterpFixed(mantissa, invLUT_hiPulses[LUTblock])/powf(10.F, logfreq);
   }
   return photon_estimate;
 }
