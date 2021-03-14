@@ -1237,7 +1237,7 @@ x             Write serial heartbeat
  */
     if (PingsPerMs ==1 || (PingCount % PingsPerMs == 1)) {
       //if (SERIAL_USB) {SERIAL_USB.println("Data");
-      accum_ms_Photons = Photon_Estimator(accum_ms_Pulses, accum_ms_TimeHi, 3);
+      accum_ms_Photons = (uint32_t) (Photon_Estimator(accum_ms_Pulses, accum_ms_TimeHi, 3) + 0.5);
 
       accum_hb_Photons += accum_ms_Photons;
       
