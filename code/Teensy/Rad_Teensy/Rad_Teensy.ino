@@ -485,6 +485,9 @@ int Write_Ring_to_SD(void) {  // DONE
     interrupts();
     
     if((++RUs_Written) * SIZE_RU >= File_Length) {
+        #ifdef BERMUDA_DEBUG
+          SERIAL_USB.println("switching to new file");
+        #endif
         DataFile[CurrentFile].close();
         if(++CurrentFile==N_FILES) return(ERR_OUT_OF_FILES);
         RUs_Written = 0;

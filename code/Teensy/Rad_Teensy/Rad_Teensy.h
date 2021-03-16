@@ -32,6 +32,7 @@
 
 #define EMULATOR_ENABLE 1 // Set to 1 line to have teensy run as emulator, generating synthetic data
 #define PROFILER_ENABLE 0 // Set to 1 to have profiler replace UTC 
+#define BERMUDA_DEBUG 1
 
 /*------------------------------------------------------------------------------ 
 
@@ -84,8 +85,8 @@
 */
 
 
-
-#define PRE_ALLOCATE_MiBS    128  // 128MiB  
+#define PRE_ALLOCATE_MiBS    1  // 128MiB 
+//#define PRE_ALLOCATE_MiBS    128  // 128MiB  
 //#define PRE_ALLOCATE_MiBS    256  // 256MiB  
 //#define PRE_ALLOCATE_MiBS    512  // 512MiB  
 //#define PRE_ALLOCATE_MiBS   1024  // 1GiB
